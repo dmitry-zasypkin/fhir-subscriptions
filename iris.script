@@ -1,0 +1,52 @@
+zn "HSLIB"
+set namespace="FHIRSERVER"
+set appKey = "/fsub"
+set strategyClass = "isc.ateam.fsub.FSUBInteractionsStrategy"
+set metadataPackages = $lb("hl7.fhir.r4.core@4.0.1")
+set importdir="/opt/irisapp/src"
+
+// Import class HS.Local.Util.FoundationInstaller (it creates a separate code db when setting up "Foundation" namespace)
+do $System.OBJ.Load("/opt/irisapp/src/HS/Local/Util/FoundationInstaller.cls", "ck")
+
+// Install a Foundation namespace and change to it
+kill vars
+set vars("CodeDBName") = namespace _ "CODE"  // name for program code database to be created
+do ##class(HS.Local.Util.FoundationInstaller).Install(namespace, .vars)
+zn namespace
+
+// Install elements that are required for a FHIR-enabled namespace
+do ##class(HS.FHIRServer.Installer).InstallNamespace()
+
+// Install an instance of a FHIR Service into the current namespace
+do ##class(HS.FHIRServer.Installer).InstallInstance(appKey, strategyClass, metadataPackages)
+
+// Configure FHIR Service instance to accept unauthenticated requests
+set strategy = ##class(HS.FHIRServer.API.InteractionsStrategy).GetStrategyForEndpoint(appKey)
+set config = strategy.GetServiceConfigData()
+set config.DebugMode = 4
+do strategy.SaveServiceConfigData(config)
+
+zw ##class(HS.FHIRServer.Tools.DataLoader).SubmitResourceFiles("/opt/irisapp/fhirdata/", "FHIRServer", appKey)
+
+do $System.OBJ.LoadDir("/opt/irisapp/src","ck",,1)
+
+/////////////////////////////// Mark code database read-only in order to keep it inside the container + same for HSLIB
+zn "%SYS"
+set dbDir = $piece(##class(Config.Databases).DatabaseByName(namespace _ "CODE"), "^", *)
+write "Code database dir: " _ dbDir,!
+
+set db = ##class(SYS.Database).%OpenId(dbDir,, .sc)
+set db.ReadOnly = 1
+set db.ResourceName = "%DB_"_$ZCVT(namespace,"U")
+set sc = db.%Save()
+if 'sc write "*** ERROR *** " _ $System.Status.GetErrorText(sc),!
+
+set hslibDir = $piece(##class(Config.Databases).DatabaseByName("HSLIB"), "^", *)
+set hslib = ##class(SYS.Database).%OpenId(hslibDir,, .sc)
+set hslib.ReadOnly = 1
+set sc = hslib.%Save()
+if 'sc write "*** ERROR *** " _ $System.Status.GetErrorText(sc),!
+
+do ##class(SYS.Container).QuiesceForBundling()
+
+halt
