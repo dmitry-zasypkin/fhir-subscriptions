@@ -8,13 +8,13 @@ XData RuleDefinition [ XMLNamespace = "http://www.intersystems.com/rule" ]
 {
 <ruleDefinition alias="" context="EnsLib.MsgRouter.RoutingEngine" production="isc.ateam.fsub.FSUBProduction">
 <ruleSet name="" effectiveBegin="" effectiveEnd="">
-<assign property="Document.resourceJson" value="FromJSON(Document.resourceStream)"></assign>
-<assign property="Document.subscriptionJsonArray" value="ArrayFromJSON(Document.subscription)"></assign>
-<trace value="Document.httpMethod_&quot; &quot;_Document.resourceType_&quot;/&quot;_ Document.resourceId"></trace>
-<trace value='"SSN of the Patient: "_GetFHIRPathOne(Document.resourceJson, "identifier.where(system=&apos;https://hl7.org/fhir/sid/us-ssn&apos;).value", Document.resourceType)'></trace>
-<trace value='"Criteria of the first Subscription: "_GetFHIRPathOne(GetEntry(Document.subscriptionJsonArray, 0), "criteria", "Subscription")'></trace>
 <rule name="rule1">
+<constraint name="msgClass" value="isc.ateam.fsub.msg.FSUBNotification"></constraint>
 <when condition="1=1">
+<assign property="Document.subscriptionJson" value="FromJSON(Document.subscriptionStream)"></assign>
+<trace value='"ResourceType=" _ Document.resourceType_"; SubscriptionId="_Document.subscriptionId_"; Criteria="_Document.subscriptionCriteria'></trace>
+<trace value='"Endpoint: "_GetFHIRPathOne(Document.subscriptionJson, "channel.type", "Subscription")_" --&gt; "_GetFHIRPathOne(Document.subscriptionJson, "channel.endpoint", "Subscription")'></trace>
+
 <send transform="" target="HS.Util.Trace.Operations"></send>
 <return></return>
 </when>

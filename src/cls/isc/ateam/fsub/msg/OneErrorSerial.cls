@@ -9,6 +9,8 @@ Property resourceId As %String;
 
 Property resourceStream As %Stream.GlobalCharacter;
 
+Property resourceJson As %DynamicObject(XMLPROJECTION = "none") [ Transient ];
+
 Property httpMethod As %String;
 
 Property errorCodes As %String;

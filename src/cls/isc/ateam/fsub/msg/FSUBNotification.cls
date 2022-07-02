@@ -1,19 +1,17 @@
 Class isc.ateam.fsub.msg.FSUBNotification Extends (%Persistent, Ens.Request)
 {
 
+Property subscriptionId As %String;
+
+Property subscriptionStream As %Stream.GlobalCharacter;
+
+Property subscriptionJson As %DynamicObject(XMLPROJECTION = "none") [ Transient ];
+
+Property subscriptionCriteria As %String(MAXLEN = "");
+
 Property resourceType As %String;
 
-Property resourceId As %String;
-
-Property httpMethod As %String;
-
-Property resourceStream As %Stream.GlobalCharacter;
-
-Property resourceJson As %DynamicObject(XMLPROJECTION = "none") [ Transient ];
-
-Property subscription As list Of %Stream.GlobalCharacter;
-
-Property subscriptionJsonArray As %DynamicArray(XMLPROJECTION = "none") [ Transient ];
+Property matchingResources As list Of isc.ateam.fsub.msg.OneErrorSerial(XMLITEMNAME = "resource");
 
 Storage Default
 {
@@ -22,19 +20,19 @@ Storage Default
 <Value>%%CLASSNAME</Value>
 </Value>
 <Value name="2">
-<Value>resourceType</Value>
+<Value>subscriptionId</Value>
 </Value>
 <Value name="3">
-<Value>resourceId</Value>
+<Value>subscriptionStream</Value>
 </Value>
 <Value name="4">
-<Value>httpMethod</Value>
+<Value>subscriptionCriteria</Value>
 </Value>
 <Value name="5">
-<Value>resourceStream</Value>
+<Value>resourceType</Value>
 </Value>
 <Value name="6">
-<Value>subscription</Value>
+<Value>matchingResources</Value>
 </Value>
 </Data>
 <DataLocation>^isc.ateamA8F4.FSUBNotific4606D</DataLocation>
