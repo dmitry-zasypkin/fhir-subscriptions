@@ -20,7 +20,7 @@ Property currentSessionId As %Integer [ Private, Transient ];
 
 Property currentListOfErrors As list Of isc.ateam.fsub.msg.OneErrorSerial [ Private, Transient ];
 
-Property subscriptionCache [ MultiDimensional, Private, Transient ];
+Property subscriptionsGlobal As %String [ InitialExpression = {$name($$$EnsRuntimeAppData($classname(), "subscriptionCache"))} ];
 
 Method OnBeforeRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest As HS.FHIRServer.API.Data.Request, pTimeout As %Integer)
 {
@@ -29,7 +29,7 @@ Method OnBeforeRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest A
 	set ..currentSessionId = ""
 	do ..currentListOfErrors.Clear()
 	
-	// retrieve and cache criteria values of all active, non-deleted Subscription resources into ..subscriptionCache
+	// retrieve and cache criteria values of all active, non-deleted Subscription resources into @..subscriptionsGlobal
 	// TODO: initialize the cache on Production start(?); then for every request check new Subscriptions only using "lastUpdated" element
 	do ..initializeSubscriptionCache()
 	
@@ -81,7 +81,7 @@ Method Add(pResourceObj As %DynamicObject, pResourceIdToAssign As %String = "", 
 	
 	try
 	{
-		do ..applySubscriptionsToResource(pResourceObj, pHttpMethod, rsrcId)
+		do ..applySubscriptionsToResource(pResourceObj.resourceType, rsrcId, pHttpMethod)
 	}
 	catch ex
 	{
@@ -99,7 +99,7 @@ Method Update(pResourceObj As %DynamicObject) As %String
 
 	try
 	{
-		do ..applySubscriptionsToResource(pResourceObj, "PUT", rsrcId)
+		do ..applySubscriptionsToResource(pResourceObj.resourceType, rsrcId, "PUT")
 	}
 	catch ex
 	{
@@ -109,43 +109,49 @@ Method Update(pResourceObj As %DynamicObject) As %String
 	quit rsrcId
 }
 
-Method applySubscriptionsToResource(rsrc As %DynamicObject, httpMethod As %String, rsrcId As %String)
+Method applySubscriptionsToResource(resourceType As %String, resourceId As %String, httpMethod As %String)
 {
 	#dim idSearchParam As HS.FHIRServer.SearchParam = ..currentFHIRService.strategy.schema.FindSearchParam("Subscription", "_id")
-	#dim idQueryParam As HS.FHIRServer.API.SearchQueryParameter = ##class(HS.FHIRServer.API.SearchQueryParameter).%New("_id", rsrcId,, idSearchParam)
+	#dim idQueryParam As HS.FHIRServer.API.SearchQueryParameter = ##class(HS.FHIRServer.API.SearchQueryParameter).%New("_id", resourceId,, idSearchParam)
 	
 	// list to hold IDs of matching Subscriptions
 	#dim subsIdList As %List = ""
 	
-	// loop over all Subscriptions in the cache (..subscriptionCache)
+	// loop over all Subscriptions in the cache (@..subscriptionsGlobal)
 	#dim subsId As %Integer = ""
 	for
 	{
-		#dim criteria As %String = ""
-		set subsId = $order(..subscriptionCache(subsId), 1, criteria)
+		#dim queryString As %String = ""
+		set subsId = $order(@..subscriptionsGlobal@(subsId), 1, queryString)
 		if (subsId = "") quit
 		
 		// skip Subscriptions relevant to some other resourceType
-		if (..subscriptionCache(subsId, "type") '= rsrc.resourceType) continue
+		if (@..subscriptionsGlobal@(subsId, "type") '= resourceType) continue
 		
 		// skip Subscriptions with criteria containing "_id" parameter with a non-matching value
-		#dim idInCriteria As %String = $get(..subscriptionCache(subsId, "_id"))
-		if (idInCriteria '= "") && (idInCriteria '= rsrcId) continue
+		#dim idInCriteria As %String = $get(@..subscriptionsGlobal@(subsId, "_id"))
+		if (idInCriteria '= "") && (idInCriteria '= resourceId) continue
 		
-		// append _id=<rsrcId> to criteria and try to use the resulting criteria to find the resource
-		#dim params As HS.FHIRServer.API.Data.QueryParameters = ..subscriptionCache(subsId, "params").%ConstructClone(1)
+		// parse queryString
+		#dim params As HS.FHIRServer.API.Data.QueryParameters = ##class(HS.FHIRServer.API.Data.QueryParameters).CreateFromQueryString(
+				queryString, 
+				..currentFHIRService.strategy.schema, 
+				resourceType)
+		
+		// append _id=<resourceId> to queryString and try to use the result to find the resource
 		do params.AddParameter(idQueryParam)
 		
-		#dim resultSet As HS.FHIRServer.Util.SearchResult = ..Search(rsrc.resourceType, "", "", params)
+		#dim resultSet As HS.FHIRServer.Util.SearchResult = ..Search(resourceType, "", "", params)
 		while resultSet.%Next() 
 		{
 			// skip deleted resources
 			if resultSet.IsDeleted continue
 			
 			// if resource id matches, then memorize Subscription id to subsIdList
-			if (resultSet.ResourceId = rsrcId)
+			if (resultSet.ResourceId = resourceId)
 			{
 				set subsIdList = subsIdList _ $lb(subsId)
+				$$$FSLog("Found matching Subscription (id=" _ subsId _ "): " _ resourceType _ "?" _ queryString)
 				quit
 			}
 		} // while
@@ -156,12 +162,14 @@ Method applySubscriptionsToResource(rsrc As %DynamicObject, httpMethod As %Strin
 	
 	// construct notification message and send it to Production
 	#dim message As isc.ateam.fsub.msg.FSUBNotification = ##class(isc.ateam.fsub.msg.FSUBNotification).%New()
-	set message.resourceId = rsrcId
-	set message.resourceType = rsrc.resourceType
+	set message.resourceId = resourceId
+	set message.resourceType = resourceType
 	set message.httpMethod = httpMethod
 	
 	// serialize the resource to message.resourceStream
+	#dim rsrc As %DynamicObject = ..Read(resourceType, resourceId)
 	do rsrc.%ToJSON(message.resourceStream)
+	kill rsrc
 	
 	// loop over Subscriptions and pack them into the message
 	for i = 1:1:$listLength(subsIdList)
@@ -190,7 +198,7 @@ Method applySubscriptionsToResource(rsrc As %DynamicObject, httpMethod As %Strin
 	// check if we have any non-expired Subscriptions, and send the notification message
 	if (message.subscription.Count() > 0)
 	{
-		#dim description As %String = httpMethod _ " " _ rsrc.resourceType _ "/" _ rsrcId
+		#dim description As %String = httpMethod _ " " _ resourceType _ "/" _ resourceId
 		do ..sendToProductionAsync(message, description)
 	}
 }
@@ -272,7 +280,7 @@ Method sendToProduction(isSync As %Boolean, request As %Persistent, Output respo
 /// TODO: initialize the cache on Production start(?); then for every request check new Subscriptions only using "lastUpdated" element
 Method initializeSubscriptionCache() [ Private ]
 {
-	kill ..subscriptionCache
+	kill @..subscriptionsGlobal
 	
 	#dim susbcrSearchTable As %String = ..currentFHIRService.strategy.GetSearchTable("Subscription")
 	#dim rsrcClass As %String = ..currentFHIRService.strategy.GetResourceClass("Subscription")
@@ -299,27 +307,22 @@ Method initializeSubscriptionCache() [ Private ]
 			continue
 		}
 
-		set ..subscriptionCache(id) = criteria
-		set ..subscriptionCache(id, "type") = $piece(criteria, "?", 1)
+		set @..subscriptionsGlobal@(id) = $piece(criteria, "?", 2, *)
+		set @..subscriptionsGlobal@(id, "type") = $piece(criteria, "?", 1)
 		
 		// parse criteria
-		#dim tempRequest As HS.FHIRServer.API.Data.Request = ##class(HS.FHIRServer.API.Data.Request).%New()
-		set tempRequest.RequestPath = $piece(criteria, "?", 1)
-		set tempRequest.QueryString = $piece(criteria, "?", 2, *)
-		set tempRequest.RequestMethod = "GET"
-		do ..currentFHIRService.ParseRequestInputs(tempRequest)
-		
-		// memorize parsed criteria
-		#dim params As HS.FHIRServer.API.Data.QueryParameters = tempRequest.Parameters
-		set ..subscriptionCache(id, "params") = params
-		
+		#dim params As HS.FHIRServer.API.Data.QueryParameters = ##class(HS.FHIRServer.API.Data.QueryParameters).CreateFromQueryString(
+				@..subscriptionsGlobal@(id), 
+				..currentFHIRService.strategy.schema, 
+				@..subscriptionsGlobal@(id, "type"))
+			
 		// search for _id just in case
 		for i = 1:1:params.Count()
 		{
 			#dim item As HS.FHIRServer.API.SearchQueryParameter = params.GetAt(i)
 			if (item.name = "_id")
 			{
-				set ..subscriptionCache(id, "_id") = item.value
+				set @..subscriptionsGlobal@(id, "_id") = item.value
 				quit
 			}
 		} // for
