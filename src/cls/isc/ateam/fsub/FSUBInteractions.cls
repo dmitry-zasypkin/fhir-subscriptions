@@ -3,7 +3,6 @@ Include Ensemble
 Class isc.ateam.fsub.FSUBInteractions Extends HS.FHIRServer.Storage.Json.Interactions
 {
 
-/// For ReadAndLock() method (not in use currently)
 Parameter lockTIMEOUT = 10;
 
 /// Production setting that specifies name of the business service which is the source of FHIR requests
@@ -39,9 +38,11 @@ Method OnBeforeRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest A
 		set ..underscoreIdSearchParam = pFHIRService.strategy.schema.FindSearchParam("Resource", "_id")
 	}
 	
-	// retrieve and cache criteria values of all active, non-deleted Subscription resources into @..subscriptionsGlobal
-	// TODO: initialize the cache on Production start(?); then for every request check new Subscriptions only using "lastUpdated" element
-	do ..initializeSubscriptionCache()
+	// if Subscription cache has not been initialized on Production start, then initialize it here
+	if '$data(@..subscriptionsGlobal)
+	{
+		do ..initializeSubscriptionCache(..subscriptionsGlobal, $this, pFHIRService.strategy)
+	}
 	
 	// memorize original JSON for logging purposes
 	set ..currentFHIRRequestStream = ""
@@ -119,6 +120,9 @@ Method OnAfterRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest As
 
 /// Intercept Add() to apply subsriptions to new resources in OnAfterRequest() method.
 /// pHttpMethod is "PUT" here in case of update/create with a non-existent "id" specified in the request.
+/// TODO: on Subscription creation.. 
+///   - change "status" as per FHIR spec: 'Once the server has activated the subscription, it sets the status to "active" (note: the server can do this as it accepts the resource if it wants).'
+///   - add new Subscription to cache (@..subscriptionsGlobal)
 Method Add(pResourceObj As %DynamicObject, pResourceIdToAssign As %String = "", pHttpMethod = "POST") As %String
 {
 	#dim rsrcId As %String = ##super(pResourceObj, pResourceIdToAssign, pHttpMethod)
@@ -129,6 +133,7 @@ Method Add(pResourceObj As %DynamicObject, pResourceIdToAssign As %String = "", 
 }
 
 /// Intercept Update() to apply subsriptions to updated resources in OnAfterRequest() method
+/// TODO: on Subscription change - update Subscription cache entry in @..subscriptionsGlobal
 Method Update(pResourceObj As %DynamicObject) As %String
 {
 	#dim rsrcId As %String = ##super(pResourceObj)
@@ -136,6 +141,16 @@ Method Update(pResourceObj As %DynamicObject) As %String
 	set ..currentResourcesToBeProcessed(pResourceObj.resourceType, rsrcId) = "PUT"
 
 	quit rsrcId
+}
+
+/// Returns VersionId for the "deleted" version
+Method Delete(pResourceType As %String, pResourceId As %String) As %String
+{
+	#dim version As %String = ##super(pResourceType, pResourceId)
+	
+	// TODO: on Subscription deletion - remove Subscription cache entry from @..subscriptionsGlobal
+	
+	quit version
 }
 
 /// Apply subscriptions (cached in @..subscriptionsGlobal) to created/updated resources from ..currentResourcesToBeProcessed
@@ -362,73 +377,94 @@ Method sendToProduction(isSync As %Boolean, request As %Persistent, Output respo
 	$$$ThrowOnError(sc)
 }
 
-/// TODO: initialize the cache on Production start(?); then for every request check new Subscriptions only using "lastUpdated" element
-Method initializeSubscriptionCache() [ Private ]
+/// Retrieve and cache criteria/end/... values of all active non-deleted non-expired Subscription resources into @..subscriptionsGlobal
+ClassMethod initializeSubscriptionCache(globalName As %String, interactions As HS.FHIRServer.Storage.Json.Interactions, strategy As HS.FHIRServer.API.InteractionsStrategy)
 {
-	kill @..subscriptionsGlobal
+	#dim lock As %String = globalName
 	
-	#dim susbcrSearchTable As %String = ..currentFHIRService.strategy.GetSearchTable("Subscription")
-	#dim rsrcClass As %String = ..currentFHIRService.strategy.GetResourceClass("Subscription")
+	lock +@lock:..#lockTIMEOUT
+	if '$TEST $$$ThrowStatus($$$ERROR($$$GeneralError, "Cannot acquire lock: " _ globalName))
 	
-	//kill sqlParams
-	//set sqlParams($i(sqlParams)) = "off"
-
-	#dim sql As %String = ""
-	set sql = "SELECT t0._id, t0._lastUpdated, t0.criteria FROM " _ susbcrSearchTable _ " t0 " _ 
-						" WHERE %NOINDEX t0.status != 'off' AND t0.criteria IS NOT NULL " _
-						" ORDER BY 1 ASC "
-
-	#dim sqlResultSet As %SQL.StatementResult = ..runQuery(sql)  // ..runQuery(sql, .sqlParams)
-	while (sqlResultSet.%Next())
+	try
 	{
-		#dim id As %Integer = +sqlResultSet.%GetData(1)
-		//#dim lastUpdated As %String = sqlResultSet.%GetData(2)
-		#dim criteria As %String = sqlResultSet.%GetData(3)
+		$$$FSLog("About to (re-)initialize Subscription cache in " _ globalName)
 		
-		// skip deleted Subscriptions
-		if $classmethod(rsrcClass, "KeyIdxExists", "Subscription/" _ id, .tempId)
-				&& ($classmethod(rsrcClass, "DeletedGetStored", tempId) = $$$YES)
+		kill @globalName
+		
+		#dim susbcrSearchTable As %String = strategy.GetSearchTable("Subscription")
+		#dim rsrcClass As %String = strategy.GetResourceClass("Subscription")
+		
+		//kill sqlParams
+		//set sqlParams($i(sqlParams)) = "off"
+
+		#dim cnt As %Integer = 0
+		#dim sql As %String = ""
+		set sql = "SELECT t0._id, t0._lastUpdated, t0.criteria FROM " _ susbcrSearchTable _ " t0 " _ 
+							" WHERE %NOINDEX t0.status != 'off' AND t0.criteria IS NOT NULL " _
+							" ORDER BY 1 ASC "
+
+		#dim sqlResultSet As %SQL.StatementResult = ##class(HS.FHIRServer.Util.RunSQLQuery).runQuery(sql)  // runQuery(sql, .sqlParams)
+		while (sqlResultSet.%Next())
 		{
-			continue
-		}
-		
-		#dim subs As %DynamicObject = ..Read("Subscription", id)
-		
-		// skip expired Subscriptions
-		#dim endTS As %TimeStamp = ""
-		if (subs.end '= "")
-		{
-			set endTS = ##class(%TimeStamp).XSDToLogical(subs.end)  // UTC
-			if (endTS '= "") && (0 <= $System.SQL.DATEDIFF("ms", endTS, $zdatetime($ztimestamp, 3, 1, 3)))
+			#dim id As %Integer = +sqlResultSet.%GetData(1)
+			//#dim lastUpdated As %String = sqlResultSet.%GetData(2)
+			#dim criteria As %String = sqlResultSet.%GetData(3)
+			
+			// skip deleted Subscriptions
+			if $classmethod(rsrcClass, "KeyIdxExists", "Subscription/" _ id, .tempId)
+					&& ($classmethod(rsrcClass, "DeletedGetStored", tempId) '= $$$NO)
 			{
-				$$$FSLog("Skipping expired Subscription; end=" _ subs.end _ ", id=" _ id)
 				continue
 			}
-		}
-
-		#dim resourceType As %String = $piece(criteria, "?", 1)
-		#dim queryString As %String = $piece(criteria, "?", 2, *)
-		set @..subscriptionsGlobal@(resourceType, id) = queryString
-		if (endTS '= "") set @..subscriptionsGlobal@(resourceType, id, "end") = endTS
-		
-		// parse criteria
-		#dim params As HS.FHIRServer.API.Data.QueryParameters = ##class(HS.FHIRServer.API.Data.QueryParameters).CreateFromQueryString(
-				queryString, 
-				..currentFHIRService.strategy.schema, 
-				resourceType)
 			
-		// search for _id just in case
-		for i = 1:1:params.Count()
-		{
-			#dim item As HS.FHIRServer.API.SearchQueryParameter = params.GetAt(i)
-			if (item.name = "_id")
+			#dim subs As %DynamicObject = interactions.Read("Subscription", id)
+			
+			// skip expired Subscriptions
+			#dim endTS As %TimeStamp = ""
+			if (subs.end '= "")
 			{
-				set @..subscriptionsGlobal@(resourceType, id, "_id") = item.value
-				quit
+				set endTS = ##class(%TimeStamp).XSDToLogical(subs.end)  // UTC
+				if (endTS '= "") && (0 <= $System.SQL.DATEDIFF("ms", endTS, $zdatetime($ztimestamp, 3, 1, 3)))
+				{
+					$$$FSLog("Skipping expired Subscription; end=" _ subs.end _ ", id=" _ id)
+					continue
+				}
 			}
-		} // for
+
+			#dim resourceType As %String = $piece(criteria, "?", 1)
+			#dim queryString As %String = $piece(criteria, "?", 2, *)
+			set @globalName@(resourceType, id) = queryString
+			if (endTS '= "") set @globalName@(resourceType, id, "end") = endTS
+			set cnt = cnt + 1
+			
+			// parse criteria
+			#dim params As HS.FHIRServer.API.Data.QueryParameters = ##class(HS.FHIRServer.API.Data.QueryParameters).CreateFromQueryString(
+					queryString, 
+					strategy.schema, 
+					resourceType)
+				
+			// search for _id just in case
+			for i = 1:1:params.Count()
+			{
+				#dim item As HS.FHIRServer.API.SearchQueryParameter = params.GetAt(i)
+				if (item.name = "_id")
+				{
+					set @globalName@(resourceType, id, "_id") = item.value
+					quit
+				}
+			} // for
+			
+		} // while
 		
-	} // while
+		if (cnt > 0) set @globalName = cnt
+	}
+	catch ex
+	{
+		lock -@lock
+		throw ex
+	}
+	
+	lock -@lock
 }
 
 /// Not used
