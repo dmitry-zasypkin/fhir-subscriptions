@@ -20,7 +20,7 @@ Property currentSessionId As %Integer [ Private, Transient ];
 
 Property currentListOfErrors As list Of isc.ateam.fsub.msg.OneErrorSerial [ Private, Transient ];
 
-Property subscriptionsGlobal As %String [ InitialExpression = {$name($$$EnsRuntimeAppData($classname(), "subscriptionCache"))} ];
+Property subscriptionsGlobal As %String [ InitialExpression = {$name($$$EnsRuntimeAppData($classname(), "s"))} ];
 
 Property currentResourcesToBeProcessed [ MultiDimensional, Private, Transient ];
 
@@ -31,7 +31,7 @@ Method OnBeforeRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest A
 	// initialize the properties
 	set ..currentFHIRService = pFHIRService
 	set ..currentSessionId = ""
-	do ..currentListOfErrors.Clear()
+	set ..currentListOfErrors = ""
 	kill ..currentResourcesToBeProcessed
 	
 	if '$isObject(..underscoreIdSearchParam)
@@ -67,6 +67,7 @@ Method OnAfterRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest As
 			// local array to hold IDs of resources and matching Subscriptions
 			kill matchesArray
 			
+			// populate matchesArray
 			do ..applySubscriptionsToCurrentResources(resourceType, .matchesArray)
 			
 			// check if we found at least one resource matching one Subscription
@@ -75,10 +76,12 @@ Method OnAfterRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest As
 				do ..sendNotifications(resourceType, .matchesArray)
 			}
 		}
+		
+		kill matchesArray
 	}
 	catch ex
 	{
-		// "swallow" fatal exceptions and log then somewhere
+		// "swallow" fatal exceptions and log them somewhere
 		// TODO: any better place to log such exceptions (which are pretty unlikely to happen btw)?
 		$$$FSLog("*** ERROR *** Fatal exception when processing subscriptions: "_ $$$StatusDisplayString(ex.AsStatus()))
 	}
@@ -110,7 +113,7 @@ Method OnAfterRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest As
 	
 	// clean up
 	set ..currentFHIRRequestStream = ""
-	do ..currentListOfErrors.Clear()
+	set ..currentListOfErrors = ""
 	kill ..currentResourcesToBeProcessed
 }
 
@@ -135,7 +138,7 @@ Method Update(pResourceObj As %DynamicObject) As %String
 	quit rsrcId
 }
 
-/// Apply subscriptions (@..subscriptionsGlobal) to created/updated resources from ..currentResourcesToBeProcessed
+/// Apply subscriptions (cached in @..subscriptionsGlobal) to created/updated resources from ..currentResourcesToBeProcessed
 /// matchesArray holds IDs of resources and matching Subscriptions.
 Method applySubscriptionsToCurrentResources(resourceType As %String, ByRef matchesArray) [ Private ]
 {
@@ -221,6 +224,7 @@ Method applySubscriptionsToCurrentResources(resourceType As %String, ByRef match
 			}
 			catch ex
 			{
+				// log exception to ..currentListOfErrors and proceed to next resource
 				do ..logError(resourceType,, httpMethod, resourceId, ex)
 			}
 			
@@ -244,7 +248,7 @@ Method sendNotifications(resourceType As %String, ByRef matchesArray) [ Private 
 		#dim subsJson As %DynamicObject = $get(matchesArray(resourceType, subsId, "json"))
 		
 		// skip incomplete subscriptions
-		if '$isObject(subsJson) continue
+		if '$isObject(subsJson) || (rsrcIdList = "") continue
 		
 		// construct notification message
 		#dim message As isc.ateam.fsub.msg.FSUBNotification = ##class(isc.ateam.fsub.msg.FSUBNotification).%New()
@@ -304,7 +308,10 @@ Method logError(resourceType As %String, rsrc As %DynamicObject = "", httpMethod
 		if $data(stack) && (+$get(stack) > 1)
 		{
 			#dim stackList As %List = ""
-			for i = +$get(stack):-1:2 set stackList = stackList _ $lb($get(stack(i, "PLACE")))
+			for i = +$get(stack):-1:2
+			{
+				set stackList = stackList _ $lb($get(stack(i, "PLACE")))
+			}
 
 			do newItem.stack.InsertList(stackList)
 		}
