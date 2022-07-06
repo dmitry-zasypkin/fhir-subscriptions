@@ -16,7 +16,7 @@ FHIR subscriptions processing for FHIR Resource Repository of InterSystems IRIS 
 	XXX> zn "USER"
 	USER> do $System.OBJ.Load("<repo directory>/Installer.cls", "ck")
 	```
-2. Run  ```setup()``` method of [App.Installer class](../main/Installer.cls) passing it repo directory path, name for the new namespace, web application path for the FHIR endpoint to be created, and other parameters, e.g.:
+2. Run [setup() method](../main/Installer.cls#L4) of ```App.Installer``` class passing it repo directory path, name for the new namespace, web application path for the FHIR endpoint to be created, and other parameters, e.g.:
 	```
 	USER> zw ##class(App.Installer).setup("C:/Git/fhir-subscriptions", "FHIRSERVER", "/fsub", "isc.ateam.fsub.FSUBInteractionsStrategy", {$lb("hl7.fhir.r4.core@4.0.1")}, "isc.ateam.fsub.FSUBProduction")
 	```
