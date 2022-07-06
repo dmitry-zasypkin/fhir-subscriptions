@@ -20,7 +20,13 @@ SHELL ["/irissession.sh"]
 
 RUN \
   do $System.OBJ.Load("Installer.cls", "ck") \
-  set sc = ##class(App.Installer).setup()
+  set repoRoot = $system.Process.CurrentDirectory() \
+  set namespace = "FHIRSERVER" \
+  set appKey = "/fsub" \
+  set strategyClass = "isc.ateam.fsub.FSUBInteractionsStrategy" \
+  set metadataPackages = {$lb("hl7.fhir.r4.core@4.0.1")} \
+  set productionClass = "isc.ateam.fsub.FSUBProduction" \
+  set sc = ##class(App.Installer).setup(repoRoot, namespace, appKey, strategyClass, metadataPackages, productionClass)
 
 # bringing the standard shell back
 SHELL ["/bin/bash", "-c"]

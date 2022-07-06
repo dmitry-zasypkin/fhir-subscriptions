@@ -2,16 +2,16 @@ Class App.Installer [ Abstract ]
 {
 
 ClassMethod setup(
-	importdir As %String = "/opt/irisapp/src/cls",
-	namespace As %String = "FHIRSERVER",
-	appKey As %String = "/fsub",
-	strategyClass As %String = "isc.ateam.fsub.FSUBInteractionsStrategy",
-	metadataPackages As %List = {$lb("hl7.fhir.r4.core@4.0.1")},
-	productionClass As %String = "isc.ateam.fsub.FSUBProduction") As %Status
+	repoRoot As %String,
+	namespace As %String,
+	appKey As %String,
+	strategyClass As %String,
+	metadataPackages As %List,
+	productionClass As %String) As %Status
 {
 	// Import class HS.Local.Util.FoundationInstaller
 	zn "HSCUSTOM"
-	$$$QuitOnError($System.OBJ.Load(importdir _ "/HS/Local/Util/FoundationInstaller.cls", "ck"))
+	$$$QuitOnError($System.OBJ.Load(repoRoot _ "/src/cls/HS/Local/Util/FoundationInstaller.cls", "ck"))
 
 	// Install a Foundation namespace with a separate db for program code
 	zn "HSLIB"
@@ -30,7 +30,7 @@ ClassMethod setup(
 	do ##class(HS.FHIRServer.Installer).InstallNamespace()
 
 	// Import sources
-	$$$QuitOnError($System.OBJ.LoadDir(importdir, "ck", ,1))
+	$$$QuitOnError($System.OBJ.LoadDir(repoRoot _ "/src/cls", "ck", ,1))
 
 	// Install an instance of a FHIR Service into the current namespace
 	do ##class(HS.FHIRServer.Installer).InstallInstance(appKey, strategyClass, metadataPackages)
@@ -46,11 +46,11 @@ ClassMethod setup(
 	$$$QuitOnError(##class(Ens.Director).SetAutoStart(productionClass))
 
 	// Load some FHIR data
-	$$$QuitOnError(##class(HS.FHIRServer.Tools.DataLoader).SubmitResourceFiles("/opt/irisapp/fhirdata/", "FHIRServer", appKey))
+	$$$QuitOnError(##class(HS.FHIRServer.Tools.DataLoader).SubmitResourceFiles(repoRoot _ "/fhirdata/", "FHIRServer", appKey))
 
 	/* Uncomment the following code if using Durable %SYS
 	
-	////////////////// Mark code database read-only in order to keep it inside the container + same for HSLIB
+	////////////////// Mark code database read-only in order to keep it inside the container
 	zn "%SYS"
 	set dbDir = $piece(##class(Config.Databases).DatabaseByName(namespace _ "CODE"), "^", *)
 	write "Code database dir: " _ dbDir,!
@@ -60,13 +60,6 @@ ClassMethod setup(
 	set db.ReadOnly = 1
 	set db.ResourceName = "%DB_"_$ZCVT(namespace,"U")
 	$$$QuitOnError(db.%Save())
-
-	// not needed in 2022.1+ (?)
-	set hslibDir = $piece(##class(Config.Databases).DatabaseByName("HSLIB"), "^", *)
-	set hslib = ##class(SYS.Database).%OpenId(hslibDir,, .sc)
-	$$$QuitOnError(sc)
-	set hslib.ReadOnly = 1
-	$$$QuitOnError(hslib.%Save())
 	*/
 
 	quit $$$OK
