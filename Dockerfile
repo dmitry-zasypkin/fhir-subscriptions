@@ -6,20 +6,22 @@ USER root
 WORKDIR /opt/irisapp
 RUN chown ${ISC_PACKAGE_MGRUSER}:${ISC_PACKAGE_IRISGROUP} /opt/irisapp
 
+COPY irissession.sh /
+RUN chmod +x /irissession.sh
+
 USER ${ISC_PACKAGE_MGRUSER}
 
 COPY src src
 COPY data/fhir fhirdata
-COPY iris.script /tmp/iris.script
+COPY Installer.cls Installer.cls
 
 # run iris and initialize
-RUN iris start $ISC_PACKAGE_INSTANCENAME \
-  && iris session $ISC_PACKAGE_INSTANCENAME < /tmp/iris.script \
-  && iris stop $ISC_PACKAGE_INSTANCENAME quietly \
-  && rm -f $ISC_PACKAGE_INSTALLDIR/mgr/journal.log \
-  && rm -f $ISC_PACKAGE_INSTALLDIR/mgr/IRIS.WIJ \
-  && rm -f $ISC_PACKAGE_INSTALLDIR/mgr/iris.ids \
-  && rm -f $ISC_PACKAGE_INSTALLDIR/mgr/alerts.log \
-  && rm -f $ISC_PACKAGE_INSTALLDIR/mgr/journal/* \
-  && rm -f $ISC_PACKAGE_INSTALLDIR/mgr/messages.log \
-  && touch $ISC_PACKAGE_INSTALLDIR/mgr/messages.log
+SHELL ["/irissession.sh"]
+
+RUN \
+  do $System.OBJ.Load("Installer.cls", "ck") \
+  set sc = ##class(App.Installer).setup()
+
+# bringing the standard shell back
+SHELL ["/bin/bash", "-c"]
+

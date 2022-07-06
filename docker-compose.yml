@@ -5,15 +5,13 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: always
+    command: --check-caps false
     ports: 
       - 32782:1972
       - 32783:52773
       - 32784:53773
     volumes:
       - ./:/irisdev/app
-      - ~/iris:/dur
-    environment:
-      - ISC_DATA_DIRECTORY=/dur/1
     command: 
       - -a
       - iris session iris -U%SYS '##class(Security.Users).UnExpireUserPasswords("*")'
