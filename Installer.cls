@@ -2,12 +2,12 @@ Class App.Installer [ Abstract ]
 {
 
 ClassMethod setup(
+	importdir As %String = "/opt/irisapp/src/cls",
 	namespace As %String = "FHIRSERVER",
 	appKey As %String = "/fsub",
 	strategyClass As %String = "isc.ateam.fsub.FSUBInteractionsStrategy",
 	metadataPackages As %List = {$lb("hl7.fhir.r4.core@4.0.1")},
-	productionClass As %String = "isc.ateam.fsub.FSUBProduction",
-	importdir As %String = "/opt/irisapp/src/cls") As %Status
+	productionClass As %String = "isc.ateam.fsub.FSUBProduction") As %Status
 {
 	// Import class HS.Local.Util.FoundationInstaller
 	zn "HSCUSTOM"
