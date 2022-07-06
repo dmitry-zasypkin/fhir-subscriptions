@@ -19,6 +19,10 @@ ClassMethod setup(
 	set vars("CodeDBName") = namespace _ "CODE"  // name for program code database to be created
 	$$$QuitOnError(##class(HS.Local.Util.FoundationInstaller).Install(namespace, .vars))
 	
+	// Change security resource of the program code database we've just created
+	zn "%SYS"
+	$$$QuitOnError(##class(SYS.Database).ModifyDatabase($system.Util.ManagerDirectory() _ namespace _ "CODE",, "%DB_" _ namespace))
+	
 	// Change to the new ns
 	zn namespace
 
