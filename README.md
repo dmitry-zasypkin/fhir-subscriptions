@@ -18,7 +18,7 @@ FHIR subscriptions processing for FHIR Resource Repository of InterSystems IRIS 
 	```
 2. Run [setup() method](../main/Installer.cls#L4) of ```App.Installer``` class passing it repo directory path, name for the new namespace, web application path for the FHIR endpoint to be created, and other parameters, e.g.:
 	```
-	USER> zw ##class(App.Installer).setup("C:/Git/fhir-subscriptions", "FHIRSERVER", "/fsub", "isc.ateam.fsub.FSUBInteractionsStrategy", {$lb("hl7.fhir.r4.core@4.0.1")}, "isc.ateam.fsub.FSUBProduction")
+	USER> zw ##class(App.Installer).setup("C:/Git/fhir-subscriptions", "FHIRSERVER", "/fsub", "isc.ateam.fsub.FSUBInteractionsStrategy", $lb("hl7.fhir.r4.core@4.0.1"), "isc.ateam.fsub.FSUBProduction")
 	```
 It will create the specified namespace and a set of databases including a separate database for program code. 
 It will then import the source code into the new namespace, setup FHIR endpoint with the specified path, and start interoperability production [isc.ateam.fsub.FSUBProduction](../main/src/cls/isc/ateam/fsub/FSUBProduction.cls).
