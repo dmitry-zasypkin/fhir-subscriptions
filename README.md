@@ -2,7 +2,7 @@
 FHIR subscriptions processing for FHIR Resource Repository of InterSystems IRIS for Health
 
 ## Docker Installation
-1. Clone/git pull the repo into any local directory, e.g.:
+1. Clone the repo into any local directory, e.g.:
 	```
 	$ git clone https://github.com/dmitry-zasypkin/fhir-subscriptions.git
 	$ cd fhir-subscriptions
