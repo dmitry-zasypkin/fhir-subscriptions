@@ -45,8 +45,10 @@ ClassMethod setup(
 	set ^Ens.Configuration("csp", "LastProduction") = productionClass
 	$$$QuitOnError(##class(Ens.Director).SetAutoStart(productionClass))
 
-	// Load some FHIR data
-	$$$QuitOnError(##class(HS.FHIRServer.Tools.DataLoader).SubmitResourceFiles(repoRoot _ "/fhirdata/", "FHIRServer", appKey))
+	// Load some FHIR data from either "fhirdata" or "data/fhir" directories
+	#dim dataDir As %String = repoRoot _ "/fhirdata/"
+	if '##class(%File).DirectoryExists(dataDir) set dataDir = repoRoot _ "/data/fhir/"
+	$$$QuitOnError(##class(HS.FHIRServer.Tools.DataLoader).SubmitResourceFiles(dataDir, "FHIRServer", appKey))
 
 	/* Uncomment the following code if using Durable %SYS
 	
