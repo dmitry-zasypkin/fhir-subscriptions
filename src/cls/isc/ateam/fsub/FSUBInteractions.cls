@@ -3,6 +3,9 @@ Include Ensemble
 Class isc.ateam.fsub.FSUBInteractions Extends HS.FHIRServer.Storage.Json.Interactions
 {
 
+/* NB: After modifying this class, make sure to reset the endpoint using this command:
+	do ##class(HS.FHIRServer.Service).InvalidateInstances((##class(HS.FHIRServer.API.InteractionsStrategy).GetStrategyForEndpoint("/fsub")).InstanceKey)  kill ^FSLOG
+*/
 Parameter lockTIMEOUT = 10;
 
 /// Production setting that specifies name of the business service which is the source of FHIR requests
@@ -55,6 +58,20 @@ Method OnAfterRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest As
 {
 	do ##super(pFHIRService, pFHIRRequest, pFHIRResponse)
 	
+	// skip subscription processing in case of error HTTP status
+	if (+pFHIRResponse.Status < 300)
+	{
+		do ..onAfterRequestInternal(pFHIRService, pFHIRRequest, pFHIRResponse)
+	}
+	
+	// clean up
+	set ..currentFHIRRequestStream = ""
+	set ..currentListOfErrors = ""
+	kill ..currentResourcesToBeProcessed
+}
+
+Method onAfterRequestInternal(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest As HS.FHIRServer.API.Data.Request, pFHIRResponse As HS.FHIRServer.API.Data.Response) [ Private ]
+{
 	///////////// loop over types of the resources that have been added/updated during the request processing
 	//							--> apply subscriptions to resources, and send notifications to production
 	try
@@ -110,12 +127,7 @@ Method OnAfterRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest As
 			// TODO: any better place to log such exceptions (which are pretty unlikely to happen btw)?
 			$$$FSLog("*** ERROR *** Exception when constructing/sending message to production: "_ $$$StatusDisplayString(ex.AsStatus()))
 		}
-	}
-	
-	// clean up
-	set ..currentFHIRRequestStream = ""
-	set ..currentListOfErrors = ""
-	kill ..currentResourcesToBeProcessed
+	} // if (..currentListOfErrors.Count() > 0)
 }
 
 /// Intercept Add() to apply subsriptions to new resources in OnAfterRequest() method.
