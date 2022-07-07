@@ -1,4 +1,4 @@
-/// Validates criteria elements of Subscription resources
+/// Validates status and criteria elements of Subscription resources
 Class isc.ateam.fsub.SubscriptionValidator Extends HS.FHIRServer.Util.ResourceValidator
 {
 
@@ -22,6 +22,16 @@ Method ValidateResource(pResourceObject As %DynamicObject)
 	#dim sc As %Status = $$$OK
 	try
 	{
+		// require Subscription.status="requested" as per the R4 spec (?)
+		//   see https://www.hl7.org/fhir/r4/valueset-subscription-status.html#expansion
+		//   and https://www.hl7.org/fhir/r4/subscription.html#errors
+		if (pResourceObject.status '= "requested")
+		{
+			set sc = $$$ERROR($$$GeneralError, "Only 'requested' status is allowed")
+			quit
+		}
+		
+		// validate Subscription.criteria
 		set sc = ..validateSubscriptionCriteria(pResourceObject.criteria, ..metaAPI)
 	}
 	catch ex

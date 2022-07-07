@@ -137,10 +137,12 @@ Method onAfterRequestInternal(pFHIRService As HS.FHIRServer.API.Service, pFHIRRe
 /// Intercept Add() to apply subsriptions to new resources in OnAfterRequest() method.
 /// pHttpMethod is "PUT" here in case of update/create with a non-existent "id" specified in the request.
 /// TODO: on Subscription creation.. 
-///   - change "status" as per FHIR spec: 'Once the server has activated the subscription, it sets the status to "active" (note: the server can do this as it accepts the resource if it wants).'
 ///   - add new Subscription to cache (@..subscriptionsGlobal)
 Method Add(pResourceObj As %DynamicObject, pResourceIdToAssign As %String = "", pHttpMethod = "POST") As %String
 {
+	// the resource has already been validated by the time Add() is called, so it's safe to put "active" into Subscription.status
+	if (pResourceObj.resourceType = "Subscription") set pResourceObj.status = "active"
+	
 	#dim rsrcId As %String = ##super(pResourceObj, pResourceIdToAssign, pHttpMethod)
 	
 	set ..currentResourcesToBeProcessed(pResourceObj.resourceType, rsrcId) = pHttpMethod
@@ -152,6 +154,9 @@ Method Add(pResourceObj As %DynamicObject, pResourceIdToAssign As %String = "", 
 /// TODO: on Subscription change - update Subscription cache entry in @..subscriptionsGlobal
 Method Update(pResourceObj As %DynamicObject) As %String
 {
+	// the resource has already been validated by the time Update() is called, so it's safe to put "active" into Subscription.status
+	if (pResourceObj.resourceType = "Subscription") set pResourceObj.status = "active"
+
 	#dim rsrcId As %String = ##super(pResourceObj)
 
 	set ..currentResourcesToBeProcessed(pResourceObj.resourceType, rsrcId) = "PUT"
