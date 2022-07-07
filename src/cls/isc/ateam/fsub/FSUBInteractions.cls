@@ -454,6 +454,12 @@ Method sendToProduction(isSync As %Boolean, request As %Persistent, Output respo
 	#dim service As Ens.BusinessService
 	$$$ThrowOnError(##class(Ens.Director).CreateBusinessService(source, .service))
 	
+	// use one and the same session for all the interoperability messages generated in the scope of a given FHIR request
+	if (..currentSessionId '= "")
+	{
+		set service.%SessionId = ..currentSessionId
+	}
+	
 	if isSync
 	{
 		set sc = service.SendRequestSync(target, request, .response, syncTimeOut, messageDescription)
