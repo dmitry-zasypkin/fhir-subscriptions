@@ -32,6 +32,8 @@ Property currentResourcesToBeProcessed [ MultiDimensional, Private, Transient ];
 
 Property underscoreIdSearchParam As HS.FHIRServer.SearchParam [ Private, Transient ];
 
+Property subscriptionsBeingDeleted As %List [ Private, Transient ];
+
 Method OnBeforeRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest As HS.FHIRServer.API.Data.Request, pTimeout As %Integer)
 {
 	// initialize the properties
@@ -39,6 +41,7 @@ Method OnBeforeRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest A
 	set ..currentSessionId = ""
 	set ..currentListOfErrors = ""
 	kill ..currentResourcesToBeProcessed
+	set ..subscriptionsBeingDeleted = ""
 	
 	if '$isObject(..underscoreIdSearchParam)
 	{
@@ -72,11 +75,53 @@ Method OnAfterRequest(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest As
 	set ..currentFHIRRequestStream = ""
 	set ..currentListOfErrors = ""
 	kill ..currentResourcesToBeProcessed
+	set ..subscriptionsBeingDeleted = ""
 }
 
 Method onAfterRequestInternal(pFHIRService As HS.FHIRServer.API.Service, pFHIRRequest As HS.FHIRServer.API.Data.Request, pFHIRResponse As HS.FHIRServer.API.Data.Response) [ Private ]
 {
-	///////////// loop over types of the resources that have been added/updated during the request processing
+	//// loop over Subscription resources that have been added/updated during the request processing
+	//							--> add (or update) entries to Subscription cache (@..subscriptionsGlobal)
+	try
+	{
+		#dim subsId As %Integer = ""
+		for
+		{
+			set subsId = $order(..currentResourcesToBeProcessed("Subscription", subsId))
+			if (subsId = "") quit
+			
+			do ..cacheOneSubscription(..subscriptionsGlobal, $this, pFHIRService.strategy, subsId)
+		}
+	}
+	catch ex
+	{
+		// "swallow" fatal exceptions and log them somewhere
+		// TODO: any better place to log such exceptions (which are pretty unlikely to happen btw)?
+		$$$FSLog("*** ERROR *** Fatal exception when caching subscriptions: "_ $$$StatusDisplayString(ex.AsStatus()))
+	}
+	
+	//// remove Subscriptions from cache in case of DELETE Subscription request(s)
+	//
+	if (..subscriptionsBeingDeleted '= "")
+	{
+		try
+		{
+			for i = 1:1:$listLength(..subscriptionsBeingDeleted)
+			{
+				#dim deletedId As %Integer = $listGet(..subscriptionsBeingDeleted, i)
+				do ..cacheOneSubscription(..subscriptionsGlobal,,, deletedId, $$$YES)
+			}
+		}
+		catch ex
+		{
+			// "swallow" fatal exceptions and log them somewhere
+			// TODO: any better place to log such exceptions (which are pretty unlikely to happen btw)?
+			$$$FSLog("*** ERROR *** Fatal exception when caching subscriptions: "_ $$$StatusDisplayString(ex.AsStatus()))
+		}
+	}
+
+	
+	//// loop over types of the resources that have been added/updated during the request processing
 	//							--> apply subscriptions to resources, and send notifications to production
 	try
 	{
@@ -109,7 +154,7 @@ Method onAfterRequestInternal(pFHIRService As HS.FHIRServer.API.Service, pFHIRRe
 	}
 	
 	
-	/////////// notify production of errors (if any) encountered during subscription processing
+	//// notify production of errors (if any) encountered during subscription processing
 	//
 	if (..currentListOfErrors.Count() > 0)
 	{
@@ -134,31 +179,30 @@ Method onAfterRequestInternal(pFHIRService As HS.FHIRServer.API.Service, pFHIRRe
 	} // if (..currentListOfErrors.Count() > 0)
 }
 
-/// Intercept Add() to apply subsriptions to new resources in OnAfterRequest() method.
-/// pHttpMethod is "PUT" here in case of update/create with a non-existent "id" specified in the request.
-/// TODO: on Subscription creation.. 
-///   - add new Subscription to cache (@..subscriptionsGlobal)
+/// Note that pHttpMethod is "PUT" here in case of update/create with a non-existent "id" specified in the request.
 Method Add(pResourceObj As %DynamicObject, pResourceIdToAssign As %String = "", pHttpMethod = "POST") As %String
 {
 	// the resource has already been validated by the time Add() is called, so it's safe to put "active" into Subscription.status
+	// (Subscription.status should be set to "active" as per the R4 spec, see https://www.hl7.org/fhir/r4/subscription.html#errors)
 	if (pResourceObj.resourceType = "Subscription") set pResourceObj.status = "active"
 	
 	#dim rsrcId As %String = ##super(pResourceObj, pResourceIdToAssign, pHttpMethod)
 	
+	// log created resource to ..currentResourcesToBeProcessed to apply subsriptions in OnAfterRequest() method
 	set ..currentResourcesToBeProcessed(pResourceObj.resourceType, rsrcId) = pHttpMethod
 		
 	quit rsrcId
 }
 
-/// Intercept Update() to apply subsriptions to updated resources in OnAfterRequest() method
-/// TODO: on Subscription change - update Subscription cache entry in @..subscriptionsGlobal
 Method Update(pResourceObj As %DynamicObject) As %String
 {
 	// the resource has already been validated by the time Update() is called, so it's safe to put "active" into Subscription.status
+	// (Subscription.status status should be set to "active" as per the R4 spec, see https://www.hl7.org/fhir/r4/subscription.html#errors)
 	if (pResourceObj.resourceType = "Subscription") set pResourceObj.status = "active"
 
 	#dim rsrcId As %String = ##super(pResourceObj)
 
+	// log updated resource to ..currentResourcesToBeProcessed to apply subsriptions in OnAfterRequest() method
 	set ..currentResourcesToBeProcessed(pResourceObj.resourceType, rsrcId) = "PUT"
 
 	quit rsrcId
@@ -169,7 +213,11 @@ Method Delete(pResourceType As %String, pResourceId As %String) As %String
 {
 	#dim version As %String = ##super(pResourceType, pResourceId)
 	
-	// TODO: on Subscription deletion - remove Subscription cache entry from @..subscriptionsGlobal
+	// log deleted Subscription to ..subscriptionsBeingDeleted to remove Subscription from cache in OnAfterRequest() method
+	if (pResourceType = "Subscription")
+	{
+		set ..subscriptionsBeingDeleted = ..subscriptionsBeingDeleted _ $lb(pResourceId)
+	}
 	
 	quit version
 }
@@ -209,6 +257,12 @@ Method applySubscriptionsToCurrentResources(resourceType As %String, ByRef match
 				queryString, 
 				..currentFHIRService.strategy.schema, 
 				resourceType)
+				
+			if $$$ISERR(params.status)
+			{
+				do ..logError("Subscription",,, subsId, params.status)
+				continue
+			}
 		}
 		
 		// loop over created/updated resources from ..currentResourcesToBeProcessed
@@ -337,7 +391,7 @@ Method sendNotifications(resourceType As %String, ByRef matchesArray) [ Private 
 	} //for loop over Subscriptions in matchesArray
 }
 
-Method logError(resourceType As %String, rsrc As %DynamicObject = "", httpMethod As %String, rsrcId As %String, exception As %Exception.AbstractException) As isc.ateam.fsub.msg.OneErrorSerial [ Private ]
+Method logError(resourceType As %String, rsrc As %DynamicObject = "", httpMethod As %String = "", rsrcId As %String = "", exception As %Exception.AbstractException) As isc.ateam.fsub.msg.OneErrorSerial [ Private ]
 {
 	#dim newItem As isc.ateam.fsub.msg.OneErrorSerial = ""
 	
@@ -419,7 +473,7 @@ ClassMethod initializeSubscriptionCache(globalName As %String, interactions As H
 	#dim lock As %String = globalName
 	
 	lock +@lock:..#lockTIMEOUT
-	if '$TEST $$$ThrowStatus($$$ERROR($$$GeneralError, "Cannot acquire lock: " _ globalName))
+	if '$TEST $$$ThrowStatus($$$ERROR($$$GeneralError, "Cannot acquire lock: " _ lock))
 	
 	try
 	{
@@ -436,7 +490,7 @@ ClassMethod initializeSubscriptionCache(globalName As %String, interactions As H
 		#dim cnt As %Integer = 0
 		#dim sql As %String = ""
 		set sql = "SELECT t0._id, t0._lastUpdated, t0.criteria FROM " _ susbcrSearchTable _ " t0 " _ 
-							" WHERE %NOINDEX t0.status != 'off' AND t0.criteria IS NOT NULL " _
+							" WHERE %NOINDEX t0.status != 'off' " _
 							" ORDER BY 1 ASC "
 
 		#dim sqlResultSet As %SQL.StatementResult = ##class(HS.FHIRServer.Util.RunSQLQuery).runQuery(sql)  // runQuery(sql, .sqlParams)
@@ -444,7 +498,7 @@ ClassMethod initializeSubscriptionCache(globalName As %String, interactions As H
 		{
 			#dim id As %Integer = +sqlResultSet.%GetData(1)
 			//#dim lastUpdated As %String = sqlResultSet.%GetData(2)
-			#dim criteria As %String = sqlResultSet.%GetData(3)
+			//#dim criteria As %String = sqlResultSet.%GetData(3)
 			
 			// skip deleted Subscriptions
 			if $classmethod(rsrcClass, "KeyIdxExists", "Subscription/" _ id, .tempId)
@@ -453,49 +507,93 @@ ClassMethod initializeSubscriptionCache(globalName As %String, interactions As H
 				continue
 			}
 			
-			#dim subs As %DynamicObject = interactions.Read("Subscription", id)
-			
-			// skip expired Subscriptions
-			#dim endTS As %TimeStamp = ""
-			if (subs.end '= "")
-			{
-				set endTS = ##class(%TimeStamp).XSDToLogical(subs.end)  // UTC
-				if (endTS '= "") && (0 <= $System.SQL.DATEDIFF("ms", endTS, $zdatetime($ztimestamp, 3, 1, 3)))
-				{
-					$$$FSLog("Skipping expired Subscription; end=" _ subs.end _ ", id=" _ id)
-					continue
-				}
-			}
-
-			#dim resourceType As %String = $piece(criteria, "?", 1)
-			#dim queryString As %String = $piece(criteria, "?", 2, *)
-			set @globalName@(resourceType, id) = queryString
-			if (endTS '= "") set @globalName@(resourceType, id, "end") = endTS
+			do ..cacheOneSubscription(globalName, interactions, strategy, id)
 			set cnt = cnt + 1
-			
-			if (queryString '= "")
+		}
+		
+		if (cnt > 0) set @globalName = cnt   // NB: we won't update this counter after cache initialization as this is just for debugging
+	}
+	catch ex
+	{
+		lock -@lock
+		throw ex
+	}
+	
+	lock -@lock
+}
+
+ClassMethod cacheOneSubscription(globalName As %String, interactions As HS.FHIRServer.Storage.Json.Interactions, strategy As HS.FHIRServer.API.InteractionsStrategy, subsId As %Integer, isDelete As %Boolean = {$$$NO}) [ Private ]
+{
+	#define subsript1 "*"
+	#dim lock As %String = $name(@globalName@("Subscription", subsId))
+	
+	lock +@lock:..#lockTIMEOUT
+	if '$TEST $$$ThrowStatus($$$ERROR($$$GeneralError, "Cannot acquire lock: " _ lock))
+	
+	try
+	{
+		if isDelete
+		{
+			if $data(@globalName@($$$subsript1, subsId))
 			{
-				// parse criteria
-				#dim params As HS.FHIRServer.API.Data.QueryParameters = ##class(HS.FHIRServer.API.Data.QueryParameters).CreateFromQueryString(
-						queryString, 
-						strategy.schema, 
-						resourceType)
+				#dim resType As %String = @globalName@($$$subsript1, subsId)
+				kill @globalName@(resType, subsId)
+				kill @globalName@($$$subsript1, subsId)
+			}
+			quit
+		}
+		
+		#dim subs As %DynamicObject = interactions.Read("Subscription", subsId)
+		#dim criteria As %String = subs.criteria
+		#dim resourceType As %String = $piece(criteria, "?", 1)
+		#dim queryString As %String = $piece(criteria, "?", 2, *)
+		
+		// update cache entry = re-create cache entry
+		if $data(@globalName@(resourceType, subsId))
+		{
+			kill @globalName@(resourceType, subsId)
+			kill @globalName@($$$subsript1, subsId)
+		}
+		
+		// skip expired Subscriptions
+		#dim endTS As %TimeStamp = ""
+		if (subs.end '= "")
+		{
+			set endTS = ##class(%TimeStamp).XSDToLogical(subs.end)  // UTC
+			if (endTS '= "") && (0 <= $System.SQL.DATEDIFF("ms", endTS, $zdatetime($ztimestamp, 3, 1, 3)))
+			{
+				$$$FSLog("Skipping expired Subscription; end=" _ subs.end _ ", id=" _ subsId)
+				quit
+			}
+		}
+
+		set @globalName@($$$subsript1, subsId) = resourceType
+		
+		set @globalName@(resourceType, subsId) = queryString
+		if (endTS '= "") set @globalName@(resourceType, subsId, "end") = endTS
+		
+		if (queryString '= "")
+		{
+			// parse criteria
+			#dim params As HS.FHIRServer.API.Data.QueryParameters = ##class(HS.FHIRServer.API.Data.QueryParameters).CreateFromQueryString(
+					queryString, 
+					strategy.schema, 
+					resourceType)
 					
+			if $$$ISOK(params.status)
+			{
 				// search for _id just in case
 				for i = 1:1:params.Count()
 				{
 					#dim item As HS.FHIRServer.API.SearchQueryParameter = params.GetAt(i)
 					if (item.name = "_id")
 					{
-						set @globalName@(resourceType, id, "_id") = item.value
+						set @globalName@(resourceType, subsId, "_id") = item.value
 						quit
 					}
 				} // for
-			}
-			
-		} // while
-		
-		if (cnt > 0) set @globalName = cnt
+			} // if $$$ISOK(params.status)
+		} // if (queryString '= "")
 	}
 	catch ex
 	{
