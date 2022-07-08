@@ -247,75 +247,75 @@ Method applySubscriptionsToCurrentResources(resourceType As %String, ByRef match
 			continue
 		}
 		
-		#dim idInCriteria As %String = $get(@..subscriptionsGlobal@(resourceType, subsId, "_id"))
-		
-		// parse queryString
-		#dim params As HS.FHIRServer.API.Data.QueryParameters = ""
-		if (queryString '= "")
+		// no query string --> the Subscription applies to ANY resource of this type
+		if (queryString = "")
 		{
-			set params = ##class(HS.FHIRServer.API.Data.QueryParameters).CreateFromQueryString(
-				queryString, 
-				..currentFHIRService.strategy.schema, 
-				resourceType)
-				
-			if $$$ISERR(params.status)
+			#dim rId As %String = ""
+			for
 			{
-				do ..logError("Subscription",,, subsId, params.status)
-				continue
+				set rId = $order(..currentResourcesToBeProcessed(resourceType, rId))
+				if (rId = "") quit
+				do ..logEntryToMatchesArray(.matchesArray, resourceType, subsId, rId, "")  // memorize both IDs to matchesArray
 			}
+			
+			continue
+		}
+
+		// parse queryString
+		#dim params As HS.FHIRServer.API.Data.QueryParameters = ##class(HS.FHIRServer.API.Data.QueryParameters).CreateFromQueryString(
+			queryString, 
+			..currentFHIRService.strategy.schema, 
+			resourceType)
+		
+		if $$$ISERR(params.status)
+		{
+			// this should never happen since we validate Subscription.criteria
+			do ..logError("Subscription",,, subsId, params.status)
+			continue
 		}
 		
-		// loop over created/updated resources from ..currentResourcesToBeProcessed
+		#dim idInCriteria As %String = $get(@..subscriptionsGlobal@(resourceType, subsId, "_id"))
+		
+		// loop over created/updated resources from ..currentResourcesToBeProcessed 
+		//    and collect resource IDs to a comma-separated list
+		#dim resourceIds As %String = ""
 		#dim resourceId As %String = ""
 		for
 		{
-			#dim httpMethod As %String = ""
-			set resourceId = $order(..currentResourcesToBeProcessed(resourceType, resourceId), 1, httpMethod)
+			set resourceId = $order(..currentResourcesToBeProcessed(resourceType, resourceId))
 			if (resourceId = "") quit
 
-			if (queryString = "")
-			{
-				// no query string --> the Subscription applies to any resource of this type
-				// memorize id's of both Subscription and the current resource to matchesArray
-				do ..logEntryToMatchesArray(.matchesArray, resourceType, subsId, resourceId, "")
-				continue
-			}
-
-			// skip resource if the Subscription has "_id" in its criteria, and it doesn't match the id of the current resource
+			// skip resource if the Subscription has "_id=..." in its criteria, and the value doesn't match the id of the current resource
 			if (idInCriteria '= "") && (idInCriteria '= resourceId) continue
-
-			// append _id=<resourceId> to queryString and use the result in Search request trying to find the same resource
-			#dim idQueryParam As HS.FHIRServer.API.SearchQueryParameter = ##class(HS.FHIRServer.API.SearchQueryParameter).%New("_id", resourceId,, ..underscoreIdSearchParam)
-			do params.AddParameter(idQueryParam)
-				
-			try
+		
+			set resourceIds = resourceIds _ $case(resourceIds, "":"", :",") _ resourceId
+		}
+		
+		// append "_id=<resourceId1>,<resourceId2>,..,<resourceIdN>" to queryString and use the result in Search request
+		#dim idQueryParam As HS.FHIRServer.API.SearchQueryParameter = ##class(HS.FHIRServer.API.SearchQueryParameter).%New("_id", resourceIds,, ..underscoreIdSearchParam)
+		do params.AddParameter(idQueryParam)
+		
+		try
+		{
+			#dim resultSet As HS.FHIRServer.Util.SearchResult = ..Search(resourceType, "", "", params)
+			while resultSet.%Next() 
 			{
-				#dim resultSet As HS.FHIRServer.Util.SearchResult = ..Search(resourceType, "", "", params)
-				while resultSet.%Next() 
-				{
-					// skip deleted resources
-					if resultSet.IsDeleted continue
-					
-					// skip the resource if id does not match (should never happen)
-					if (resultSet.ResourceId '= resourceId) continue
-					
-					// memorize id's of both Subscription and the resource to matchesArray
-					do ..logEntryToMatchesArray(.matchesArray, resourceType, subsId, resourceId, queryString)
-
-					quit
-
-				} // while
+				// skip deleted resources
+				if resultSet.IsDeleted continue
+									
+				// memorize IDs of both the Subscription and the resource to matchesArray
+				do ..logEntryToMatchesArray(.matchesArray, resourceType, subsId, resultSet.ResourceId, queryString)
 			}
-			catch ex
-			{
-				// log exception to ..currentListOfErrors and proceed to next resource
-				do ..logError(resourceType,, httpMethod, resourceId, ex)
-			}
-			
-			// remove _id=<resourceId> condition from queryString
-			do params.RemoveParameter(idQueryParam)
-			
-		} // for loop over created/updated resources
+		}
+		catch ex
+		{
+			// log exception to ..currentListOfErrors and proceed to next Subscription
+			do ..logError(resourceType,,,, ex)
+		}
+		
+		// remove "_id=..." condition from the queryString
+		do params.RemoveParameter(idQueryParam)
+		
 	} // for loop over all Subscriptions
 }
 
@@ -592,7 +592,7 @@ ClassMethod cacheOneSubscription(globalName As %String, interactions As HS.FHIRS
 				for i = 1:1:params.Count()
 				{
 					#dim item As HS.FHIRServer.API.SearchQueryParameter = params.GetAt(i)
-					if (item.name = "_id")
+					if (item.name = "_id") && (item.modifier = "") && (item.value '[ ",")
 					{
 						set @globalName@(resourceType, subsId, "_id") = item.value
 						quit
