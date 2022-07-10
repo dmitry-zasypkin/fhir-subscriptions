@@ -20,6 +20,7 @@ ClassMethod setup(
 	$$$QuitOnError(##class(HS.Local.Util.FoundationInstaller).Install(namespace, .vars))
 	
 	// Change security resource of the program code database we've just created
+	//  (in order to have the same security resource for both data and program code DBs)
 	zn "%SYS"
 	$$$QuitOnError(##class(SYS.Database).ModifyDatabase($system.Util.ManagerDirectory() _ namespace _ "CODE",, "%DB_" _ namespace))
 	
@@ -31,6 +32,28 @@ ClassMethod setup(
 
 	// Import sources
 	$$$QuitOnError($System.OBJ.LoadDir(repoRoot _ "/src/cls", "ck", ,1))
+	
+	// Configure production auto-start
+	set ^Ens.Configuration("csp", "LastProduction") = productionClass
+	$$$QuitOnError(##class(Ens.Director).SetAutoStart(productionClass))
+	
+	// Create "System Default Settings" entry for FHIREndpoint production-level setting 
+	set df = ##class(Ens.Config.DefaultSettings).%New()
+	set df.ProductionName = productionClass
+	set df.ItemName = "*"
+	set df.HostClassName = "*"
+	set df.SettingName = "FHIREndpoint"
+	set df.SettingValue = appKey
+	set df.Deployable = $$$YES
+	
+	// just in case: delete existing entry
+	&SQL(DELETE FROM Ens_Config.DefaultSettings 
+		WHERE ProductionName = :df.ProductionName 
+			AND ItemName = :df.ItemName
+			AND HostClassName = :df.HostClassName
+			AND SettingName = :df.SettingName)
+	
+	$$$QuitOnError(df.%Save())
 
 	// Install an instance of a FHIR Service into the current namespace
 	do ##class(HS.FHIRServer.Installer).InstallInstance(appKey, strategyClass, metadataPackages)
@@ -41,10 +64,6 @@ ClassMethod setup(
 	set config.DebugMode = 4
 	do strategy.SaveServiceConfigData(config)
 	
-	// Configure production auto-start
-	set ^Ens.Configuration("csp", "LastProduction") = productionClass
-	$$$QuitOnError(##class(Ens.Director).SetAutoStart(productionClass))
-
 	// Load some FHIR data from either "fhirdata" or "data/fhir" directories
 	#dim dataDir As %String = repoRoot _ "/fhirdata/"
 	if '##class(%File).DirectoryExists(dataDir) set dataDir = repoRoot _ "/data/fhir/"
@@ -52,7 +71,7 @@ ClassMethod setup(
 
 	/* Uncomment the following code if using Durable %SYS
 	
-	////////////////// Mark code database read-only in order to keep it inside the container
+	////////////////// Mark program code database read-only in order to keep it inside the container
 	zn "%SYS"
 	set dbDir = $piece(##class(Config.Databases).DatabaseByName(namespace _ "CODE"), "^", *)
 	write "Code database dir: " _ dbDir,!
