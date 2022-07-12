@@ -8,7 +8,7 @@ $@
 if '\$Get(sc,1) do ##class(%SYSTEM.Process).Terminate(, 1)
 zn "%SYS"
 do ##class(SYS.Container).QuiesceForBundling()
-// Do ##class(Security.Users).UnExpireUserPasswords("*")  // moved to Dockerfile in order to keep the image as small as possible
+// Do ##class(Security.Users).UnExpireUserPasswords("*")  // moved to docker-compose.yml in order to keep the image as small as possible
 halt
 EOF
 
