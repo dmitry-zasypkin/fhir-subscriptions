@@ -479,7 +479,7 @@ ClassMethod initializeSubscriptionCache(globalName As %String, interactions As H
 	#dim lock As %String = globalName
 	
 	lock +@lock:..#lockTIMEOUT
-	if '$TEST $$$ThrowStatus($$$ERROR($$$GeneralError, "Cannot acquire lock: " _ lock))
+	if '$TEST $$$ThrowError($$$GeneralError, "Cannot acquire lock: " _ lock)
 	
 	try
 	{
@@ -534,7 +534,7 @@ ClassMethod cacheOneSubscription(globalName As %String, interactions As HS.FHIRS
 	#dim lock As %String = $name(@globalName@("Subscription", subsId))
 	
 	lock +@lock:..#lockTIMEOUT
-	if '$TEST $$$ThrowStatus($$$ERROR($$$GeneralError, "Cannot acquire lock: " _ lock))
+	if '$TEST $$$ThrowError($$$GeneralError, "Cannot acquire lock: " _ lock)
 	
 	try
 	{
@@ -616,7 +616,7 @@ Method ReadAndLock(pResourceType As %String, pResourceId As %String, pVersionId 
 	#dim lock As %String = "FHIR" _ pResourceType _ pResourceId _ "v" _ pVersionId
 	
 	lock +@lock:..#lockTIMEOUT
-	if '$TEST $$$ThrowStatus($$$ERROR($$$GeneralError, "Cannot lock the resource: " _ pResourceType _ "/" _ pResourceId))
+	if '$TEST $$$ThrowError($$$GeneralError, "Cannot lock the resource: " _ pResourceType _ "/" _ pResourceId)
 	
 	try
 	{
