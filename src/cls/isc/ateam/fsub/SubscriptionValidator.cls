@@ -1,4 +1,4 @@
-/// Validates status and criteria elements of Subscription resources
+/// Validates Subscription resources
 Class isc.ateam.fsub.SubscriptionValidator Extends HS.FHIRServer.Util.ResourceValidator
 {
 
@@ -31,8 +31,23 @@ Method ValidateResource(pResourceObject As %DynamicObject)
 			quit
 		}
 		
+		// as of now, "REST Hook" is the only supported channel type
+		if (pResourceObject.channel.type '= "rest-hook")
+		{
+			set sc = $$$ERROR($$$GeneralError, "Channel type not supported: " _ pResourceObject.channel.type)
+			quit
+		}
+		
+		#dim payloadMimeType As %String = pResourceObject.channel.payload
+		if (payloadMimeType '= "") && (payloadMimeType '= "application/fhir+json") && (payloadMimeType '= "application/fhir+xml")
+		{
+			set sc = $$$ERROR($$$GeneralError, "Unsupported MIME type for payload: " _ payloadMimeType)
+			quit
+		}
+		
 		// validate Subscription.criteria
 		set sc = ..validateSubscriptionCriteria(pResourceObject.criteria, ..metaAPI)
+		if $$$ISERR(sc) quit
 	}
 	catch ex
 	{
