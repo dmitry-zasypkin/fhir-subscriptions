@@ -25,10 +25,11 @@ FHIR subscriptions processing for FHIR Resource Repository of InterSystems IRIS 
 	zw ##class(App.Installer).setup("C:/Git/fhir-subscriptions", "FHIRSERVER", "/fsub", "isc.ateam.fsub.FSUBInteractionsStrategy", $lb("hl7.fhir.r4.core@4.0.1"), "isc.ateam.fsub.FSUBProduction", "/fsub/mock", "isc.ateam.fsub.mock.DummyRESTHookHandler", $lb("no-payload", "with-payload"), "REST Hook: ")
 	```
 	It will create the specified namespace backed by a set of databases including a separate database for program code. 
-	It will then import the source code into the new namespace, setup FHIR endpoint with the specified path, and appoint [isc.ateam.fsub.FSUBProduction](../main/src/cls/isc/ateam/fsub/FSUBProduction.cls) as the current interoperability production for the namespace.
+	It will then import the source code into the new namespace, setup FHIR endpoint with the specified path, create two Service Registry entries, configure a mock-up service web application, and appoint [isc.ateam.fsub.FSUBProduction](../main/src/cls/isc/ateam/fsub/FSUBProduction.cls) as the current interoperability production for the namespace.
 	Note that FHIR endpoint is based on the specified custom interactions strategy class [isc.ateam.fsub.FSUBInteractionsStrategy](../main/src/cls/isc/ateam/fsub/FSUBInteractionsStrategy.cls).
 4. Start the production in the new namespace either using the command ```do ##class(Ens.Director).StartProduction()``` in the same terminal window, or using the Portal.
 ## Testing with Postman
 1. Import [FSUB.postman_collection.json](../main/misc/postman/FSUB.postman_collection.json) file into Postman and adjust ```url``` variable defined for the collection.
 2. Post Subscription resource to FHIR Repository using ```POST Subscription``` request from the collection. Criteria element of the resource contains the following [Search](https://www.hl7.org/fhir/r4/search.html) string: ```Patient?identifier=https://hl7.org/fhir/sid/us-ssn|999-99-9990```.
-3. Test subscription processing by posting Patient resource and/or Bundle containing Patient resources using the corresponding requests from the collection. Patient resources with SSN=999-99-9990 will trigger interoperability (Ensemble) session that can be examined in the Portal.
+3. Test subscription processing by posting Patient resource and/or Bundle containing Patient resources using the corresponding requests from the collection. Patient resources with SSN=999-99-9990 will trigger interoperability (Ensemble) session that can be examined in the Portal. E.g.:
+![image](https://user-images.githubusercontent.com/13035460/178743201-a9dc7959-df15-4c06-910d-d492b42fa30c.png)
