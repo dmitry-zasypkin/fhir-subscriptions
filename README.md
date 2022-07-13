@@ -31,7 +31,7 @@ FHIR [subscriptions](https://www.hl7.org/fhir/r4/subscription.html) processing f
 ## Testing with Postman
 1. Import [FSUB.postman_collection.json](../main/misc/postman/FSUB.postman_collection.json) file into Postman and adjust ```url``` variable defined for the collection.
 2. Post Subscription resource to FHIR Repository using ```POST Subscription``` request from the collection. Criteria element of the resource contains the following [Search](https://www.hl7.org/fhir/r4/search.html) string: ```Patient?identifier=https://hl7.org/fhir/sid/us-ssn|999-99-9990```.
-3. Test subscription processing by posting Patient resource and/or Bundle containing Patient resources using the corresponding requests from the collection. Patient resources with SSN=999-99-9990 will trigger interoperability (Ensemble) session that can be examined in the Portal. E.g.:
+3. Test subscription processing by posting Patient resource and/or Bundle containing Patient resources using the corresponding requests from the collection. Patient resources with SSN=999-99-9990 will trigger interoperability (Ensemble) session that can be examined in the [Portal](https://docs.intersystems.com/irisforhealthlatest/csp/docbook/DocBook.UI.Page.cls?KEY=EMONITOR_message#EMONITOR_message_browsing). E.g.:
   <p align="center"><img src="https://user-images.githubusercontent.com/13035460/178743201-a9dc7959-df15-4c06-910d-d492b42fa30c.png" alt="Visual Trace" width="650"/></p>
 
 ## Notification Routing Details
