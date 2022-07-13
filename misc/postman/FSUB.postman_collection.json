@@ -1,12 +1,12 @@
 {
 	"info": {
-		"_postman_id": "7ce00510-b50a-4274-a4dc-2e12ed3b44ba",
-		"name": "FSUB local",
+		"_postman_id": "6491b16a-af24-48ce-8007-7889b666a731",
+		"name": "FSUB",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
 		{
-			"name": "Subscription",
+			"name": "Subscription (with payload)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -23,7 +23,39 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n  \"resourceType\": \"Subscription\",\r\n  \"status\": \"requested\",\r\n  \"contact\": [\r\n    {\r\n      \"system\": \"phone\",\r\n      \"value\": \"ext 4123\"\r\n    }\r\n  ],\r\n  \"reason\": \"Monitor specific patient registration\",\r\n  \"criteria\": \"Patient?identifier=https://hl7.org/fhir/sid/us-ssn|999-99-9990\",\r\n  \"channel\": {\r\n    \"type\": \"rest-hook\",\r\n    \"endpoint\": \"https://tempuri.org/rest\",\r\n    \"payload\": \"application/fhir+json\",\r\n    \"header\": [\r\n      \"Authorization: Bearer secret-token-abc-123\"\r\n    ]\r\n  }\r\n}"
+					"raw": "{\r\n  \"resourceType\": \"Subscription\",\r\n  \"status\": \"requested\",\r\n  \"reason\": \"Monitor specific patient registration\",\r\n  \"criteria\": \"Patient?identifier=https://hl7.org/fhir/sid/us-ssn|999-99-9990\",\r\n  \"channel\": {\r\n    \"type\": \"rest-hook\",\r\n    \"endpoint\": \"http://localhost:52773/fsub/mock/with-payload\",\r\n    \"payload\":\"application/fhir+xml\"\r\n  }\r\n}"
+				},
+				"url": {
+					"raw": "{{url}}/Subscription",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"Subscription"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Subscription (no payload)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/fhir+json",
+						"type": "default"
+					},
+					{
+						"key": "Accept",
+						"value": "application/fhir+json",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"resourceType\": \"Subscription\",\r\n  \"status\": \"requested\",\r\n  \"reason\": \"Monitor specific patient registration\",\r\n  \"criteria\": \"Patient?identifier=https://hl7.org/fhir/sid/us-ssn|999-99-9990\",\r\n  \"channel\": {\r\n    \"type\": \"rest-hook\",\r\n    \"endpoint\": \"http://localhost:52773/fsub/mock/no-payload\",\r\n    \"header\": [\r\n      \"Hi: there\"\r\n    ]\r\n  }\r\n}"
 				},
 				"url": {
 					"raw": "{{url}}/Subscription",
@@ -87,7 +119,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n  \"resourceType\": \"Bundle\",\r\n  \"type\": \"transaction\",\r\n  \"entry\": [\r\n    {\r\n      \"resource\": {\r\n        \"resourceType\": \"Patient\",\r\n        \"identifier\": [\r\n          {\r\n            \"type\": {\r\n              \"coding\": [\r\n                {\r\n                  \"system\": \"https://terminology.hl7.org/CodeSystem/v2-0203\",\r\n                  \"code\": \"MR\",\r\n                  \"display\": \"Medical Record Number\"\r\n                }\r\n              ]\r\n            },\r\n            \"system\": \"urn:organization:clinic1\",\r\n            \"value\": \"23423\"\r\n          },\r\n          {\r\n            \"type\": {\r\n              \"coding\": [\r\n                {\r\n                  \"system\": \"https://terminology.hl7.org/CodeSystem/v2-0203\",\r\n                  \"code\": \"SS\",\r\n                  \"display\": \"Social Security Number\"\r\n                }\r\n              ],\r\n              \"text\": \"Social Security Number\"\r\n            },\r\n            \"system\": \"https://hl7.org/fhir/sid/us-ssn\",\r\n            \"value\": \"999-99-9990\"\r\n          }\r\n        ],\r\n        \"name\": [\r\n          {\r\n            \"family\": \"Johnson\",\r\n            \"given\": [\r\n              \"Richard\"\r\n            ]\r\n          }\r\n        ],\r\n        \"gender\": \"male\",\r\n        \"birthDate\": \"2000-01-01\"\r\n      },\r\n      \"request\": {\r\n        \"method\": \"POST\",\r\n        \"url\": \"Patient\"\r\n      },\r\n      \"fullUrl\": \"urn:uuid:cb12851a-2ebd-4c15-88a9-5bee0f308afc\"\r\n    },\r\n    {\r\n      \"resource\": {\r\n        \"resourceType\": \"Patient\",\r\n        \"identifier\": [\r\n          {\r\n            \"type\": {\r\n              \"coding\": [\r\n                {\r\n                  \"system\": \"https://terminology.hl7.org/CodeSystem/v2-0203\",\r\n                  \"code\": \"MR\",\r\n                  \"display\": \"Medical Record Number\"\r\n                }\r\n              ]\r\n            },\r\n            \"system\": \"urn:organization:clinic2\",\r\n            \"value\": \"XXXX\"\r\n          },\r\n          {\r\n            \"type\": {\r\n              \"coding\": [\r\n                {\r\n                  \"system\": \"https://terminology.hl7.org/CodeSystem/v2-0203\",\r\n                  \"code\": \"SS\",\r\n                  \"display\": \"Social Security Number\"\r\n                }\r\n              ],\r\n              \"text\": \"Social Security Number\"\r\n            },\r\n            \"system\": \"https://hl7.org/fhir/sid/us-ssn\",\r\n            \"value\": \"000-00-0000\"\r\n          }\r\n        ],\r\n        \"name\": [\r\n          {\r\n            \"family\": \"Gonzalez\",\r\n            \"given\": [\r\n              \"Marla\",\r\n              \"Penelopa\"\r\n            ]\r\n          }\r\n        ],\r\n        \"gender\": \"female\",\r\n        \"birthDate\": \"1960-01-01\"\r\n      },\r\n      \"request\": {\r\n        \"method\": \"POST\",\r\n        \"url\": \"Patient\"\r\n      },\r\n      \"fullUrl\": \"urn:uuid:cb12851a-2ebd-4c15-88a9-5bee0f308000\"\r\n    }\r\n  ]\r\n}",
+					"raw": "{\r\n  \"resourceType\": \"Bundle\",\r\n  \"type\": \"transaction\",\r\n  \"entry\": [\r\n    {\r\n      \"resource\": {\r\n        \"resourceType\": \"Patient\",\r\n        \"identifier\": [\r\n          {\r\n            \"type\": {\r\n              \"coding\": [\r\n                {\r\n                  \"system\": \"https://terminology.hl7.org/CodeSystem/v2-0203\",\r\n                  \"code\": \"SS\",\r\n                  \"display\": \"Social Security Number\"\r\n                }\r\n              ],\r\n              \"text\": \"Social Security Number\"\r\n            },\r\n            \"system\": \"https://hl7.org/fhir/sid/us-ssn\",\r\n            \"value\": \"999-99-9990\"\r\n          }\r\n        ],\r\n        \"name\": [\r\n          {\r\n            \"use\": \"official\",\r\n            \"family\": \"Smith\",\r\n            \"given\": [\r\n              \"Peter\",\r\n              \"Paul\"\r\n            ]\r\n          }\r\n        ],\r\n        \"gender\": \"male\",\r\n        \"birthDate\": \"1947-10-26\"\r\n      },\r\n      \"request\": {\r\n        \"method\": \"POST\",\r\n        \"url\": \"Patient\"\r\n      },\r\n      \"fullUrl\": \"urn:uuid:cb12851a-2ebd-4c15-88a9-5bee0f308afc\"\r\n    },\r\n    {\r\n      \"resource\": {\r\n        \"resourceType\": \"Patient\",\r\n        \"identifier\": [\r\n          {\r\n            \"type\": {\r\n              \"coding\": [\r\n                {\r\n                  \"system\": \"https://terminology.hl7.org/CodeSystem/v2-0203\",\r\n                  \"code\": \"SS\",\r\n                  \"display\": \"Social Security Number\"\r\n                }\r\n              ],\r\n              \"text\": \"Social Security Number\"\r\n            },\r\n            \"system\": \"https://hl7.org/fhir/sid/us-ssn\",\r\n            \"value\": \"999-99-9990\"\r\n          }\r\n        ],\r\n        \"name\": [\r\n          {\r\n            \"use\": \"official\",\r\n            \"family\": \"Smith\",\r\n            \"given\": [\r\n              \"P\",\r\n              \"P\"\r\n            ]\r\n          }\r\n        ],\r\n        \"gender\": \"male\",\r\n        \"birthDate\": \"1947-10-26\"\r\n      },\r\n      \"request\": {\r\n        \"method\": \"POST\",\r\n        \"url\": \"Patient\"\r\n      },\r\n      \"fullUrl\": \"urn:uuid:cb12851a-2ebd-4c15-88a9-5bee0f308000\"\r\n    }\r\n  ]\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
