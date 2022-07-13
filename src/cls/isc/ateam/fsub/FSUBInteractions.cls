@@ -293,7 +293,18 @@ Method applySubscriptionsToCurrentResources(resourceType As %String, ByRef match
 		
 		// append "_id=<resourceId1>,<resourceId2>,..,<resourceIdN>" to queryString and use the result in Search request
 		#dim idQueryParam As HS.FHIRServer.API.SearchQueryParameter = ##class(HS.FHIRServer.API.SearchQueryParameter).%New("_id", resourceIds,, ..underscoreIdSearchParam)
-		do params.AddParameter(idQueryParam)
+		
+		// there has been a significant API change in 2022.2:
+		if (+$System.Version.GetMajor() > 2022) 
+				|| ((+$System.Version.GetMajor() = 2022) && (+$System.Version.GetMinor() >= 2))
+		{
+			// setORConditions=1 argument is important
+			do params.AddParameter(idQueryParam, $$$YES)
+		}
+		else
+		{
+			do params.AddParameter(idQueryParam)
+		}
 		
 		try
 		{
