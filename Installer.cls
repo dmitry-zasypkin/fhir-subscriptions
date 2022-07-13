@@ -17,6 +17,7 @@ ClassMethod setup(
 	zn "HSLIB"
 	kill vars
 	set vars("CodeDBName") = namespace _ "CODE"  // name for program code database to be created
+	set vars("Production") = productionClass
 	$$$QuitOnError(##class(HS.Local.Util.FoundationInstaller).Install(namespace, .vars))
 	
 	// Change security resource of the program code database we've just created
