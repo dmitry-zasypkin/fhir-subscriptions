@@ -19,13 +19,20 @@ XData ProductionDefinition
   <Description></Description>
   <ActorPoolSize>2</ActorPoolSize>
   <Setting Target="Adapter" Name="InboundFHIRSourceService">FHIR</Setting>
-  <Setting Target="Adapter" Name="InboundFHIRTarget">FSUBRouterProcess</Setting>
+  <Setting Target="Adapter" Name="InboundFHIRTarget">isc.ateam.fsub.FSUBRouterProcess</Setting>
   <Item Name="FHIR" Category="" ClassName="EnsLib.Testing.Service" PoolSize="0" Enabled="true" Foreground="false" Comment="" LogTraceEvents="false" Schedule="">
   </Item>
   <Item Name="HS.Util.Trace.Operations" Category="" ClassName="HS.Util.Trace.Operations" PoolSize="1" Enabled="true" Foreground="false" Comment="" LogTraceEvents="false" Schedule="">
   </Item>
-  <Item Name="FSUBRouterProcess" Category="" ClassName="EnsLib.MsgRouter.RoutingEngine" PoolSize="1" Enabled="true" Foreground="false" Comment="" LogTraceEvents="true" Schedule="">
-    <Setting Target="Host" Name="BusinessRuleName">isc.ateam.fsub.FSUBRouterProcessRoutingRule</Setting>
+  <Item Name="isc.ateam.fsub.FSUBRouterProcess" Category="" ClassName="isc.ateam.fsub.FSUBRouterProcess" PoolSize="1" Enabled="true" Foreground="false" Comment="" LogTraceEvents="true" Schedule="">
+  </Item>
+  <Item Name="REST Hook: no-payload" Category="" ClassName="isc.ateam.fsub.bo.RESTHookOperation" PoolSize="1" Enabled="true" Foreground="false" Comment="" LogTraceEvents="true" Schedule="">
+    <Setting Target="Host" Name="ReplyCodeActions">E=RF</Setting>
+    <Setting Target="Host" Name="TraceOperations">*FULL*</Setting>
+  </Item>
+  <Item Name="REST Hook: with-payload" Category="" ClassName="isc.ateam.fsub.bo.RESTHookOperation" PoolSize="1" Enabled="true" Foreground="false" Comment="" LogTraceEvents="true" Schedule="">
+    <Setting Target="Host" Name="ReplyCodeActions">E=RF</Setting>
+    <Setting Target="Host" Name="TraceOperations">*FULL*</Setting>
   </Item>
 </Production>
 }
