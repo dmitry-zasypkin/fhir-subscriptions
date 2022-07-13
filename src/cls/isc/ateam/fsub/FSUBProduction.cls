@@ -11,7 +11,11 @@ Property InboundFHIRTarget As Ens.DataType.ConfigName;
 /// This setting gets its value from Default System Settings entry which is created during installation (hence FHIR endpoint path is not hard coded anywhere in the repo).
 Property FHIREndpoint As %String(MAXLEN = 1000);
 
-Parameter SETTINGS = "InboundFHIRSourceService:Basic:selector?context={Ens.ContextSearch/ProductionItems?targets=0&productionName=@productionId},InboundFHIRTarget:Basic,FHIREndpoint:Basic";
+/// Enable this setting to have a single interoperability (Ensemble) session for all messages generated while processing an incoming FHIR request.
+/// Otherwise there will be one session per matching Subscription.
+Property SingleSessionPerFHIRRequest As %Boolean [ InitialExpression = {$$$YES} ];
+
+Parameter SETTINGS = "InboundFHIRSourceService:Basic:selector?context={Ens.ContextSearch/ProductionItems?targets=0&productionName=@productionId},InboundFHIRTarget:Basic,FHIREndpoint:Basic,SingleSessionPerFHIRRequest:Basic";
 
 XData ProductionDefinition
 {

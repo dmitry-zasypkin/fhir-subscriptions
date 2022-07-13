@@ -18,6 +18,9 @@ Parameter fhirRequestsSourceNameSETTING = "InboundFHIRSourceService";
 /// Production setting that specifies name of the business process/operation which is the target for FHIR requests
 Parameter fhirRequestsTargetNameSETTING = "InboundFHIRTarget";
 
+/// Production setting that specifies whether to use a single interoperability (Ensemble) session for all messages generated while processing an incoming FHIR request
+Parameter singleSessionPerFHIRRequestSETTING = "SingleSessionPerFHIRRequest";
+
 Property currentFHIRService As HS.FHIRServer.API.Service [ Private, Transient ];
 
 Property currentFHIRRequestStream As %Stream.TmpCharacter [ Private, Transient ];
@@ -462,13 +465,21 @@ Method sendToProduction(isSync As %Boolean, request As %Persistent, Output respo
 	#dim target As %String = ##class(Ens.Director).GetCurrProductionSettingValue(..#fhirRequestsTargetNameSETTING, .sc)
 	$$$ThrowOnError(sc)
 	
+	#dim isSingleSession As %Boolean = ##class(Ens.Director).GetCurrProductionSettingValue(..#singleSessionPerFHIRRequestSETTING, .sc)
+	$$$ThrowOnError(sc)
+		
 	#dim service As Ens.BusinessService
 	$$$ThrowOnError(##class(Ens.Director).CreateBusinessService(source, .service))
 	
-	// use one and the same session for all the interoperability messages generated in the scope of a given FHIR request
-	if (..currentSessionId '= "")
+	if (isSingleSession = $$$YES)
 	{
-		set service.%SessionId = ..currentSessionId
+		// use one and the same session for all interoperability messages generated while processing an incoming FHIR request
+		if (..currentSessionId '= "") set service.%SessionId = ..currentSessionId
+	}
+	else
+	{
+		set service.%SessionId = ""
+		kill $$$JobSessionId
 	}
 	
 	if isSync
@@ -480,7 +491,8 @@ Method sendToProduction(isSync As %Boolean, request As %Persistent, Output respo
 		set sc = service.SendRequestAsync(target, request, messageDescription)
 	}
 	
-	set ..currentSessionId = service.%SessionId
+	if (isSingleSession = $$$YES) set ..currentSessionId = service.%SessionId
+	
 	$$$ThrowOnError(sc)
 }
 
