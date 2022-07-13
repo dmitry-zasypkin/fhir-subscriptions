@@ -1,5 +1,5 @@
 # fhir-subscriptions
-FHIR [subscriptions](https://www.hl7.org/fhir/r4/subscription.html) processing for FHIR Resource Repository of InterSystems IRIS for Health 2022.1+.
+FHIR [subscriptions](https://www.hl7.org/fhir/r4/subscription.html) processing for FHIR Resource Repository of [InterSystems IRIS for Health](https://docs.intersystems.com/irisforhealthlatest/csp/docbook/DocBook.UI.Page.cls) 2022.1+.
 
 ## Docker Installation
 1. Clone the repo into any local directory, e.g.:
