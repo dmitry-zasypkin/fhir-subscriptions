@@ -15,6 +15,8 @@ FHIR [subscriptions](https://www.hl7.org/fhir/r4/subscription.html) processing f
 	```
 	C:\Git> git clone https://github.com/dmitry-zasypkin/fhir-subscriptions.git
 	```
+	Or just download repo contents by clicking the green ```Code``` button and selecting ```Download ZIP```, then unzip the archive to a directory of your choice.
+
 2. In IRIS terminal import [App.Installer](../main/Installer.cls) class into ```USER``` namespace:
 	```
 	XXX> zn "USER"
