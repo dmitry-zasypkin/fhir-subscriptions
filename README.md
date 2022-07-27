@@ -1,5 +1,5 @@
 # fhir-subscriptions
-FHIR [subscriptions](https://www.hl7.org/fhir/r4/subscription.html) processing for FHIR Resource Repository of [InterSystems IRIS for Health](https://docs.intersystems.com/irisforhealthlatest/csp/docbook/DocBook.UI.Page.cls) 2022.1+.
+FHIR [subscriptions](https://www.hl7.org/fhir/r4/subscription.html) processing for FHIR Resource Repository of [InterSystems IRIS for Health](https://docs.intersystems.com/irisforhealthlatest/csp/docbook/DocBook.UI.Page.cls) 2021.1+.
 
 ## Docker Installation
 1. Clone the repo into any local directory, e.g.:
@@ -31,8 +31,10 @@ FHIR [subscriptions](https://www.hl7.org/fhir/r4/subscription.html) processing f
 	Note that FHIR endpoint is based on the specified custom interactions strategy class [isc.ateam.fsub.FSUBInteractionsStrategy](../main/src/cls/isc/ateam/fsub/FSUBInteractionsStrategy.cls).
 4. Start the production in the new namespace either using the command ```do ##class(Ens.Director).StartProduction()``` in the same terminal window, or using the Portal.
 ## Testing with Postman
-1. Import [FSUB.postman_collection.json](../main/misc/postman/FSUB.postman_collection.json) file into Postman and adjust ```url``` variable defined for the collection.
-2. Post Subscription resource to FHIR Repository using ```POST Subscription``` request from the collection. Criteria element of the resource contains the following [Search](https://www.hl7.org/fhir/r4/search.html) string: ```Patient?identifier=https://hl7.org/fhir/sid/us-ssn|999-99-9990```.
+1. Import [FSUB.postman_collection.json](../main/misc/postman/FSUB.postman_collection.json) file into Postman.
+	* Adjust ```url``` variable defined for the collection. 
+	* You may also need to adjust web server port mentioned in ```channel.endpoint``` element of Subscription resources within both of ```POST Subscription``` requests in the collection.
+2. Post Subscription resource to FHIR Repository using either of ```POST Subscription``` requests from the collection. Criteria element of the resource contains the following [Search](https://www.hl7.org/fhir/r4/search.html) string: ```Patient?identifier=https://hl7.org/fhir/sid/us-ssn|999-99-9990```.
 3. Test subscription processing by posting Patient resource and/or Bundle containing Patient resources using the corresponding requests from the collection. Patient resources with SSN=999-99-9990 will trigger interoperability (Ensemble) session that can be examined in the [Portal](https://docs.intersystems.com/irisforhealthlatest/csp/docbook/DocBook.UI.Page.cls?KEY=EMONITOR_message#EMONITOR_message_browsing). E.g.:
   <p align="center"><img src="https://user-images.githubusercontent.com/13035460/178743201-a9dc7959-df15-4c06-910d-d492b42fa30c.png" alt="Visual Trace" width="650"/></p>
 
