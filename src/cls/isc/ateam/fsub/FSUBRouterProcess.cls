@@ -110,13 +110,7 @@ Method handleNotificationRequest(request As isc.ateam.fsub.msg.FSUBNotification)
 		set noPayloadMessage.Request.RequestMethod = "POST"
 		
 		// add custom headers to the request's AdditionalInfo array
-		#dim iter As %Iterator.Object = headerArray.%GetIterator()
-		#dim entry As %String
-		#dim keyPrefix As %String = "HEADER:"
-		while iter.%GetNext(.key, .entry)
-		{
-			do noPayloadMessage.Request.AdditionalInfo.SetAt($zstrip($piece(entry, ":", 2), "<>W"), keyPrefix _ $zstrip($piece(entry, ":", 1), "<>W"))
-		}
+		if (headerArray '= "") do ..addCustomHeadersToAdditionalInfo(headerArray, noPayloadMessage.Request)
 		
 		// NB: send only ONE notification, even if there are multiple resources matching the current Subscription
 		// see https://www.hl7.org/fhir/r4/subscription.html#2.46.7.1
@@ -163,10 +157,25 @@ Method handleNotificationRequest(request As isc.ateam.fsub.msg.FSUBNotification)
 			#dim message As HS.FHIRServer.Interop.Request = clientObj.MakeRequest("PUT", payload,	"/" _ resType _ "/" _ resId, "")
 			do message.Request.AdditionalInfo.RemoveAt("ServiceName")  // we don't actually need ServiceName to be passed in requests
 			
+			// add custom headers to the request's AdditionalInfo array
+			if (headerArray '= "") do ..addCustomHeadersToAdditionalInfo(headerArray, message.Request)
+			
 			// send *async* request to the operation (async requests are not supported by HS.FHIRServer.RestClient.Interop as of 2022.1, so calling SendRequestAsync "manually")
 			$$$ThrowOnError(..SendRequestAsync(operation.Name, message,,, "FSUB Notification With Payload"))
 
 		} // for
+	}
+}
+
+/// Add custom headers to the request's AdditionalInfo array.
+ClassMethod addCustomHeadersToAdditionalInfo(headerArray As %DynamicArray, request As HS.FHIRServer.API.Data.Request) [ Private ]
+{
+	#dim iter As %Iterator.Object = headerArray.%GetIterator()
+	#dim entry As %String
+	#dim keyPrefix As %String = "HEADER:"
+	while iter.%GetNext(.key, .entry)
+	{
+		do request.AdditionalInfo.SetAt($zstrip($piece(entry, ":", 2), "<>W"), keyPrefix _ $zstrip($piece(entry, ":", 1), "<>W"))
 	}
 }
 

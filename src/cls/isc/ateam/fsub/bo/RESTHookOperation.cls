@@ -57,7 +57,11 @@ Method DispatchRequest(pInteropRequest As HS.FHIRServer.Interop.Request, Output 
 		set httpClient = $classmethod(..#httpClientCLASS, "CreateInstance", serviceName, prefer, sessionId, oauthClientName, oauthToken, oauthSendType)
 		do httpClient.setParentHost($this)
 		
-				
+		// we expect additional HTTP headers in pInteropRequest.Request.AdditionalInfo array entries 
+		//  that have keys starting with the word "HEADER:"
+		kill headers
+		do ..extractHttpHeaders(pInteropRequest.Request.AdditionalInfo, .headers)
+		
 		if (pInteropRequest.QuickStreamId '= "")
 		{
 			if (requestMethod '= "PUT")
@@ -77,6 +81,7 @@ Method DispatchRequest(pInteropRequest As HS.FHIRServer.Interop.Request, Output 
 			
 			#dim quickStreamIn As HS.SDA3.QuickStream = ##class(HS.SDA3.QuickStream).%OpenId(pInteropRequest.QuickStreamId, .sc)
 			$$$ThrowOnError(sc)
+			if (quickStreamIn.Size = 0) $$$ThrowStatus($$$ERROR($$$HSFHIRErrInputPayloadNotSpecified))
 			
 			$$$HSTRACE("Request QuickStream", "quickStreamIn", quickStreamIn)
 			
@@ -88,7 +93,21 @@ Method DispatchRequest(pInteropRequest As HS.FHIRServer.Interop.Request, Output 
 			// Set the Accept header. Charset is optional for Accept, leave it off.
 			do httpClient.SetResponseFormat(fhirRequest.ResponseFormatCode, "")
 			
-			set clientResponse = httpClient.Update(resourceType, resourceId, quickStreamIn)
+			//set clientResponse = httpClient.Update(resourceType, resourceId, quickStreamIn)
+			
+			#dim httpRequestUpdate As %Net.HttpRequest = httpClient.MakeRequest("PUT", quickStreamIn, resourceType _ "/" _ resourceId, "", .headers)
+			do httpClient.InvokeRequest(httpRequestUpdate, "PUT", resourceType _ "/" _ resourceId, "")
+			
+			try
+			{
+				set clientResponse = httpClient.MakeClientResponseFromResponse(httpRequestUpdate.HttpResponse)
+			}
+			catch innderEx
+			{
+				// ignore exception since the response is not really important, and no need to retry in case of response handling errors
+				$$$LOGSTATUS(innderEx.AsStatus())
+				set clientResponse = ""
+			}
 		}
 		else
 		{
@@ -97,11 +116,6 @@ Method DispatchRequest(pInteropRequest As HS.FHIRServer.Interop.Request, Output 
 				set sc = $$$ERROR($$$GeneralError, "Unexpected HTTP Method: " _ requestMethod)
 				quit
 			}
-			
-			// we expect additional HTTP headers in pInteropRequest.Request.AdditionalInfo array entries 
-			//  that have keys starting with the word "HEADER:"
-			kill headers
-			do ..extractHttpHeaders(pInteropRequest.Request.AdditionalInfo, .headers)
 			
 			// POST empty request
 			#dim httpRequest As %Net.HttpRequest = httpClient.MakeRequest("POST", "", "", "", .headers)
