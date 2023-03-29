@@ -1,3 +1,4 @@
+/// Not used since incompatibility with I4H 2022+
 Class HS.Local.Util.FoundationInstaller Extends HS.Util.Installer.Foundation
 {
 
