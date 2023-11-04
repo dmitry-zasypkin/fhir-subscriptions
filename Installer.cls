@@ -17,9 +17,7 @@ ClassMethod setup(
 
 	// Install a Foundation namespace
 	zn "HSLIB"
-	kill vars
-	set vars("Production") = productionClass
-	$$$QuitOnError(##class(HS.Local.Util.FoundationInstaller).Install(namespace, .vars))
+	$$$QuitOnError(##class(HS.Util.Installer.Foundation).Install(namespace))
 	
 	zn "%SYS"
 	// Create web app to receive requests directed to mock-up services
@@ -32,6 +30,11 @@ ClassMethod setup(
 	
 	// Change to the new ns
 	zn namespace
+
+	// Set production class
+	set ns = ##class(HS.Util.Installer.Foundation).%OpenId(namespace)
+	set ns.Production = productionClass
+	$$$QuitOnError(ns.%Save())
 
 	// Install elements that are required for a FHIR-enabled namespace
 	do ##class(HS.FHIRServer.Installer).InstallNamespace()
